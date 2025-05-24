@@ -5,11 +5,17 @@ import { useQuestionType } from "../context/QuestionTypeContext";
 import { useHighlightedText } from "../context/HighlightedTextContext";
 import { useQuestionEditContext } from "../context/QuestionEditContext.tsx";
 import { ThemeContext } from "../context/ThemeContext";
-import { useScore } from "../context/ScoreContext";
+import { ScoreContext } from "../context/ScoreContext";
 import { useNavigate } from "react-router-dom";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import Shepherd from "shepherd.js";
 import "shepherd.js/dist/css/shepherd.css";
+
+// Type definitions for ScoreContext
+interface ScoreContextType {
+  totalScore: number;
+  setQuestionnaireScore: (score: number | ((prevScore: number) => number)) => void;
+}
 
 // Type definitions for Shepherd.js
 interface ShepherdStep {
@@ -48,6 +54,23 @@ const ShepherdStatic = Shepherd as unknown as ShepherdStatic;
 
 // Define QuestionType to match expected keys
 type QuestionType = "textTypes" | "numberTypes" | "dateTypes" | "radioTypes";
+
+// Map primaryType to QuestionType
+const mapPrimaryTypeToQuestionType = (primaryType: string): QuestionType => {
+  switch (primaryType.toLowerCase()) {
+    case "text":
+    case "paragraph":
+      return "textTypes";
+    case "number":
+      return "numberTypes";
+    case "date":
+      return "dateTypes";
+    case "radio":
+      return "radioTypes";
+    default:
+      return "textTypes"; // Fallback to textTypes for unknown types
+  }
+};
 
 interface DivWithDropdownProps {
   textValue: string;
@@ -143,7 +166,7 @@ const DivWithDropdown: React.FC<DivWithDropdownProps> = ({
     const placeholder = findPlaceholderByValue(oldText);
 
     if (placeholder && primaryType !== "Unknown") {
-      const typeKey = `${primaryType.toLowerCase()}Types` as QuestionType;
+      const typeKey = mapPrimaryTypeToQuestionType(primaryType);
       updateQuestion(typeKey, placeholder, newText);
     }
 
@@ -314,14 +337,13 @@ const DivWithDropdown: React.FC<DivWithDropdownProps> = ({
 
 const Questionnaire = () => {
   const { isDarkMode } = useContext(ThemeContext);
-  const { totalScore, setQuestionnaireScore } = useContext(ScoreContext);
+  const { totalScore, setQuestionnaireScore } = useContext(ScoreContext) as ScoreContextType;
   const [leftActive, setLeftActive] = useState(true);
   const [rightActive, setRightActive] = useState(false);
   const { highlightedTexts } = useHighlightedText();
   const {
     selectedTypes,
     setSelectedTypes,
-    editedQuestions,
     setEditedQuestions,
     requiredQuestions,
     setRequiredQuestions,
@@ -989,7 +1011,7 @@ const Questionnaire = () => {
     const { primaryType } = determineQuestionType(placeholder);
 
     if (placeholder) {
-      const typeKey = `${primaryType.toLowerCase()}Types` as QuestionType;
+      const typeKey = mapPrimaryTypeToQuestionType(primaryType);
       updateQuestion(typeKey, placeholder, newText);
     }
     console.log(`Question text changed for index ${index} to: ${newText}`);
