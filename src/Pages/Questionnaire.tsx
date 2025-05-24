@@ -53,7 +53,7 @@ type QuestionType = "textTypes" | "numberTypes" | "dateTypes" | "radioTypes";
 type PrimaryType = "Text" | "Paragraph" | "Number" | "Date" | "Radio";
 
 // Type guard to map primaryType to QuestionType
-const getQuestionType = (primaryType: PrimaryType | undefined): QuestionType => {
+const getQuestionType = (primaryType: PrimaryType | undefined | string): QuestionType => {
   if (!primaryType) {
     console.warn("primaryType is undefined, defaulting to textTypes");
     return "textTypes";
@@ -172,10 +172,15 @@ const DivWithDropdown: React.FC<DivWithDropdownProps> = ({
     const placeholder = findPlaceholderByValue(oldText);
 
     if (placeholder && primaryType) {
-      const typeKey = getQuestionType(primaryType as PrimaryType);
+      const typeKey = getQuestionType(primaryType);
       updateQuestion(typeKey, placeholder, newText);
     } else {
-      console.warn(`Skipping updateQuestion: Invalid primaryType "${primaryType}" or placeholder "${placeholder}" for oldText "${oldText}"`);
+      const defaultType: QuestionType = "textTypes";
+      if (placeholder) {
+        updateQuestion(defaultType, placeholder, newText);
+      } else {
+        console.warn(`Skipping updateQuestion: Invalid primaryType "${primaryType}" or placeholder "${placeholder}" for oldText "${oldText}"`);
+      }
     }
 
     // Trigger tour advancement for specific placeholders
@@ -602,7 +607,7 @@ const Questionnaire = () => {
         {
           text: "Next →",
           action: () => {
-    // Handled by handleRequiredToggle
+            // Handled by handleRequiredToggle
           },
         },
       ],
@@ -646,7 +651,7 @@ const Questionnaire = () => {
       id: "set-required-employee-name",
       text: "Mark the <strong>Employee Name</strong> question as <strong>Required</strong> by toggling the switch.",
       attachTo: {
-        element: document.querySelector(`[data-testid="required-toggle values-1"]`) ?? document.body,
+        element: document.querySelector(`[data-testid="required-toggle-1"]`) ?? document.body,
         on: "bottom",
       },
       buttons: [
@@ -764,14 +769,17 @@ const Questionnaire = () => {
 
     prevHighlightedTextsRef.current = uniqueHighlightedTexts;
 
-    let savedState: Record<string, {
-      type: string;
-      typeChanged: boolean;
-      questionText: string;
-      required: boolean;
-      scored: { typeScored: boolean; requiredScored: boolean };
-      order: number;
-    }> = {};
+    let savedState: Record<
+      string,
+      {
+        type: string;
+        typeChanged: boolean;
+        questionText: string;
+        required: boolean;
+        scored: { typeScored: boolean; requiredScored: boolean };
+        order: number;
+      }
+    > = {};
 
     const savedStateData = sessionStorage.getItem("questionnaireState");
     if (savedStateData) {
@@ -823,14 +831,17 @@ const Questionnaire = () => {
       { typeScored: boolean; requiredScored: boolean }
     > = {};
     const newQuestionOrder: number[] = [];
-    const newState: Record<string, {
-      type: string;
-      typeChanged: boolean;
-      questionText: string;
-      required: boolean;
-      scored: { typeScored: boolean; requiredScored: boolean };
-      order: number;
-    }> = {};
+    const newState: Record<
+      string,
+      {
+        type: string;
+        typeChanged: boolean;
+        questionText: string;
+        required: boolean;
+        scored: { typeScored: boolean; requiredScored: boolean };
+        order: number;
+      }
+    > = {};
 
     processedTexts.forEach((text, i) => {
       const { primaryValue, primaryType } = enhancedDetermineQuestionType(text);
@@ -1005,14 +1016,21 @@ const Questionnaire = () => {
     };
     sessionStorage.setItem("questionnaireState", JSON.stringify(newState));
 
-    const placeholder = findPlaceholderByValue(oldText) || "undefined";
-    const { primaryType } = determineQuestionType(placeholder);
+    const placeholder = findPlaceholderByValue(oldText);
+    const { primaryType } = determineQuestionType(placeholder || oldText);
 
     if (placeholder && primaryType) {
-      const typeKey = getQuestionType(primaryType as PrimaryType);
+      const typeKey = getQuestionType(primaryType);
       updateQuestion(typeKey, placeholder, newText);
     } else {
-      console.warn(`Skipping updateQuestion: Invalid primaryType "${primaryType}" or placeholder "${placeholder}" for oldText "${oldText}"`);
+      const defaultType: QuestionType = "textTypes";
+      if (placeholder) {
+        updateQuestion(defaultType, placeholder, newText);
+      } else {
+        console.warn(
+          `Skipping updateQuestion: Invalid primaryType "${primaryType}" or placeholder "${placeholder}" for oldText "${oldText}"`
+        );
+      }
     }
     console.log(`Question text changed for index ${index} to: ${newText}`);
   };
@@ -1046,12 +1064,8 @@ const Questionnaire = () => {
     const newUniqueQuestions = newOrder.map((index) => uniqueQuestions[index]);
     const newQuestionTexts = newOrder.map((index) => questionTexts[index]);
     const newSelectedTypes = newOrder.map((index) => selectedTypes[index] ?? "Text");
-    const newRequiredQuestions = newOrder.map(
-      (index) => requiredQuestions[index]
-    );
-    const newTypeChangedStates = newOrder.map(
-      (index) => typeChangedStates[index]
-    );
+    const newRequiredQuestions = newOrder.map((index) => requiredQuestions[index]);
+    const newTypeChangedStates = newOrder.map((index) => typeChangedStates[index]);
     const newScoredQuestions = Object.fromEntries(
       newOrder.map((originalIndex, newIndex) => [
         newIndex,
@@ -1069,14 +1083,17 @@ const Questionnaire = () => {
     setTypeChangedStates(newTypeChangedStates);
     setScoredQuestions(newScoredQuestions);
 
-    const newState: Record<string, {
-      type: string;
-      typeChanged: boolean;
-      questionText: string;
-      required: boolean;
-      scored: { typeScored: boolean; requiredScored: boolean };
-      order: number;
-    }> = {};
+    const newState: Record<
+      string,
+      {
+        type: string;
+        typeChanged: boolean;
+        questionText: string;
+        required: boolean;
+        scored: { typeScored: boolean; requiredScored: boolean };
+        order: number;
+      }
+    > = {};
     newUniqueQuestions.forEach((text, i) => {
       newState[text] = {
         type: newSelectedTypes[i],
@@ -1256,9 +1273,7 @@ const Questionnaire = () => {
                       return (
                         <Draggable
                           key={primaryValue || `question-${originalIndex}`}
-                          draggableId={
-                            primaryValue || `question-${originalIndex}`
-                          }
+                          draggableId={primaryValue || `question-${originalIndex}`}
                           index={displayIndex}
                         >
                           {(provided) => (
@@ -1274,19 +1289,10 @@ const Questionnaire = () => {
                                 onTypeChanged={handleTypeChanged}
                                 onQuestionTextChange={handleQuestionTextChange}
                                 onRequiredChange={handleRequiredChange}
-                                initialQuestionText={
-                                  questionTexts[originalIndex] ||
-                                  "No text selected"
-                                }
-                                initialType={
-                                  selectedTypes[originalIndex] ?? "Text"
-                                }
-                                initialRequired={
-                                  requiredQuestions[originalIndex] || false
-                                }
-                                initialTypeChanged={
-                                  typeChangedStates[originalIndex] || false
-                                }
+                                initialQuestionText={questionTexts[originalIndex] || "No text selected"}
+                                initialType={selectedTypes[originalIndex] ?? "Text"}
+                                initialRequired={requiredQuestions[originalIndex] || false}
+                                initialTypeChanged={typeChangedStates[originalIndex] || false}
                               />
                             </div>
                           )}
