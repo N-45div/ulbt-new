@@ -1,21 +1,15 @@
-import { useState, useEffect, useContext, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Navbar from "../components/Navbar";
 import { FaChevronLeft, FaChevronRight, FaChevronDown } from "react-icons/fa";
 import { useQuestionType } from "../context/QuestionTypeContext";
 import { useHighlightedText } from "../context/HighlightedTextContext";
 import { useQuestionEditContext } from "../context/QuestionEditContext.tsx";
 import { ThemeContext } from "../context/ThemeContext";
-import { ScoreContext } from "../context/ScoreContext";
+import { useScore } from "../context/ScoreContext";
 import { useNavigate } from "react-router-dom";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import Shepherd from "shepherd.js";
 import "shepherd.js/dist/css/shepherd.css";
-
-// Type definitions for ScoreContext
-interface ScoreContextType {
-  totalScore: number;
-  setQuestionnaireScore: (score: number | ((prevScore: number) => number)) => void;
-}
 
 // Type definitions for Shepherd.js
 interface ShepherdStep {
@@ -55,7 +49,7 @@ const ShepherdStatic = Shepherd as unknown as ShepherdStatic;
 // Define QuestionType to match expected keys
 type QuestionType = "textTypes" | "numberTypes" | "dateTypes" | "radioTypes";
 
-// Map primaryType to QuestionType
+// Map primaryType to QuestionType with fallback
 const mapPrimaryTypeToQuestionType = (primaryType: string): QuestionType => {
   switch (primaryType.toLowerCase()) {
     case "text":
@@ -68,6 +62,7 @@ const mapPrimaryTypeToQuestionType = (primaryType: string): QuestionType => {
     case "radio":
       return "radioTypes";
     default:
+      console.warn(`Unknown primaryType "${primaryType}", defaulting to textTypes`);
       return "textTypes"; // Fallback to textTypes for unknown types
   }
 };
@@ -337,7 +332,7 @@ const DivWithDropdown: React.FC<DivWithDropdownProps> = ({
 
 const Questionnaire = () => {
   const { isDarkMode } = useContext(ThemeContext);
-  const { totalScore, setQuestionnaireScore } = useContext(ScoreContext) as ScoreContextType;
+  const { totalScore, updateQuestionnaireScore } = useScore();
   const [leftActive, setLeftActive] = useState(true);
   const [rightActive, setRightActive] = useState(false);
   const { highlightedTexts } = useHighlightedText();
@@ -420,13 +415,11 @@ const Questionnaire = () => {
       const isCorrect = selectedType === correctType || isEquivalent;
       const points = isCorrect ? 2 : -2;
 
-      setQuestionnaireScore((prevScore: number) => {
-        const newScore = Math.max(0, prevScore + points);
-        console.log(`Scored type selection for index ${index}: ${points} points, new questionnaireScore: ${newScore}`);
-        setScoreChange(points);
-        setTimeout(() => setScoreChange(null), 2000);
-        return newScore;
-      });
+      updateQuestionnaireScore(points);
+      console.log(`Scored type selection for index ${index}: ${points} points`);
+
+      setScoreChange(points);
+      setTimeout(() => setScoreChange(null), 2000);
 
       setScoredQuestions((prev) => ({
         ...prev,
@@ -437,20 +430,17 @@ const Questionnaire = () => {
         },
       }));
     },
-    [uniqueQuestions, enhancedDetermineQuestionType, scoredQuestions, setQuestionnaireScore]
+    [uniqueQuestions, enhancedDetermineQuestionType, scoredQuestions, updateQuestionnaireScore]
   );
 
   const scoreRequiredStatus = useCallback(
     (index: number, isRequired: boolean) => {
       if (isRequired) {
         if (!scoredQuestions[index]?.requiredScored) {
-          setQuestionnaireScore((prevScore: number) => {
-            const newScore = prevScore + 2;
-            console.log(`Required status for "${uniqueQuestions[index]}" set to true, scored +2, new questionnaireScore: ${newScore}`);
-            setScoreChange(2);
-            setTimeout(() => setScoreChange(null), 2000);
-            return newScore;
-          });
+          updateQuestionnaireScore(2);
+          console.log(`Required status for "${uniqueQuestions[index]}" set to true, scored +2`);
+          setScoreChange(2);
+          setTimeout(() => setScoreChange(null), 2000);
           setScoredQuestions((prev) => ({
             ...prev,
             [index]: {
@@ -462,13 +452,10 @@ const Questionnaire = () => {
         }
       } else {
         if (scoredQuestions[index]?.requiredScored) {
-          setQuestionnaireScore((prevScore: number) => {
-            const newScore = Math.max(0, prevScore - 2);
-            console.log(`Required status for "${uniqueQuestions[index]}" set to false, scored -2, new questionnaireScore: ${newScore}`);
-            setScoreChange(-2);
-            setTimeout(() => setScoreChange(null), 2000);
-            return newScore;
-          });
+          updateQuestionnaireScore(-2);
+          console.log(`Required status for "${uniqueQuestions[index]}" set to false, scored -2`);
+          setScoreChange(-2);
+          setTimeout(() => setScoreChange(null), 2000);
           setScoredQuestions((prev) => ({
             ...prev,
             [index]: {
@@ -480,7 +467,7 @@ const Questionnaire = () => {
         }
       }
     },
-    [setQuestionnaireScore, scoredQuestions, uniqueQuestions]
+    [updateQuestionnaireScore, scoredQuestions, uniqueQuestions]
   );
 
   const checkForBonus = useCallback(() => {
@@ -500,13 +487,10 @@ const Questionnaire = () => {
     });
 
     if (allCorrect) {
-      setQuestionnaireScore((prevScore: number) => {
-        const newScore = prevScore + 10;
-        console.log(`Bonus awarded: All question types and required statuses are correct. +10 points, new questionnaireScore: ${newScore}`);
-        setScoreChange(10);
-        setTimeout(() => setScoreChange(null), 2000);
-        return newScore;
-      });
+      updateQuestionnaireScore(10);
+      console.log(`Bonus awarded: All question types and required statuses are correct. +10 points`);
+      setScoreChange(10);
+      setTimeout(() => setScoreChange(null), 2000);
       setBonusAwarded(true);
     }
   }, [
@@ -515,7 +499,7 @@ const Questionnaire = () => {
     requiredQuestions,
     enhancedDetermineQuestionType,
     bonusAwarded,
-    setQuestionnaireScore,
+    updateQuestionnaireScore,
   ]);
 
   // Shepherd.js tour for Level 1 (Automate Placeholders)
@@ -1010,7 +994,7 @@ const Questionnaire = () => {
     const placeholder = findPlaceholderByValue(oldText) || "undefined";
     const { primaryType } = determineQuestionType(placeholder);
 
-    if (placeholder) {
+    if (placeholder && primaryType !== "Unknown") {
       const typeKey = mapPrimaryTypeToQuestionType(primaryType);
       updateQuestion(typeKey, placeholder, newText);
     }
