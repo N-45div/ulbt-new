@@ -4,7 +4,7 @@ type ScoreContextType = {
   totalScore: number;
   levelTwoScore: number;
   questionnaireScore: number;
-  updateScore: (delta: number) => void;
+  updateScore: (delta: number) => void; // Note: This function appears unused in the provided code
   setLevelTwoScore: (score: number) => void;
   updateQuestionnaireScore: (delta: number) => void;
   resetAllScores: () => void;
@@ -48,34 +48,24 @@ export const ScoreProvider = ({ children }: { children: React.ReactNode }) => {
   }, [questionnaireScore]);
 
   const updateScore = (delta: number) => {
-    setTotalScore(prev => {
-      const newScore = Math.max(0, prev + delta);
-      console.log(`updateScore: Total score updated to ${newScore} (delta: ${delta})`);
-      return newScore;
-    });
+    const newScore = Math.max(0, totalScore + delta);
+    setTotalScore(newScore);
+    console.log(`updateScore: Total score updated to ${newScore} (delta: ${delta})`);
   };
 
   const updateLevelTwoScore = (score: number) => {
     setLevelTwoScore(score);
-    setTotalScore(prev => {
-      // Adjust totalScore to include levelTwoScore and questionnaireScore
-      const newTotal = score + questionnaireScore;
-      console.log(`updateLevelTwoScore: Level two score set to ${score}, totalScore updated to ${newTotal}`);
-      return newTotal;
-    });
+    const newTotal = score + questionnaireScore;
+    setTotalScore(newTotal);
+    console.log(`updateLevelTwoScore: Level two score set to ${score}, totalScore updated to ${newTotal}`);
   };
 
   const updateQuestionnaireScore = (delta: number) => {
-    setQuestionnaireScore(prev => {
-      const newScore = Math.max(0, prev + delta);
-      console.log(`updateQuestionnaireScore: Questionnaire score updated to ${newScore} (delta: ${delta})`);
-      return newScore;
-    });
-    setTotalScore(prev => {
-      const newTotal = levelTwoScore + (questionnaireScore + delta);
-      console.log(`updateQuestionnaireScore: Total score updated to ${newTotal}`);
-      return newTotal;
-    });
+    const newScore = Math.max(0, questionnaireScore + delta);
+    setQuestionnaireScore(newScore);
+    const newTotal = levelTwoScore + newScore;
+    setTotalScore(newTotal);
+    console.log(`updateQuestionnaireScore: Questionnaire score updated to ${newScore} (delta: ${delta}), totalScore updated to ${newTotal}`);
   };
 
   const resetAllScores = () => {
