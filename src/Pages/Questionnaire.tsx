@@ -1,78 +1,16 @@
-import { useState, useEffect, useCallback, useRef, useContext } from "react";
+import React from "react";
 import Navbar from "../components/Navbar";
 import { FaChevronLeft, FaChevronRight, FaChevronDown } from "react-icons/fa";
+import { useState, useEffect, useContext, useCallback, useRef } from "react";
 import { useQuestionType } from "../context/QuestionTypeContext";
 import { useHighlightedText } from "../context/HighlightedTextContext";
-import { useQuestionEditContext } from "../context/QuestionEditContext.tsx";
+import { useQuestionEditContext, QuestionMaps } from "../context/QuestionEditContext.tsx";
 import { ThemeContext } from "../context/ThemeContext";
 import { useScore } from "../context/ScoreContext";
 import { useNavigate } from "react-router-dom";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import Shepherd from "shepherd.js";
 import "shepherd.js/dist/css/shepherd.css";
-
-// Type definitions for Shepherd.js
-interface ShepherdStep {
-  id: string;
-  text: string;
-  attachTo: { element: Element | string | null; on: string };
-  buttons: Array<{
-    text: string;
-    action: () => void;
-  }>;
-  classes?: string;
-}
-
-interface ShepherdTour {
-  start: () => void;
-  show: (stepId: string) => void;
-  next: () => void;
-  complete: () => void;
-  addStep: (step: ShepherdStep) => void;
-}
-
-interface ShepherdStatic {
-  Tour: new (options: {
-    defaultStepOptions: {
-      cancelIcon: { enabled: boolean };
-      classes: string;
-      scrollTo: { behavior: "smooth"; block: "center" };
-    };
-    useModalOverlay: boolean;
-    confirmCancel: boolean;
-    tourName: string;
-  }) => ShepherdTour;
-}
-
-const ShepherdStatic = Shepherd as unknown as ShepherdStatic;
-
-// Define QuestionType to match expected keys
-type QuestionType = "textTypes" | "numberTypes" | "dateTypes" | "radioTypes";
-
-// Define PrimaryType to match possible values returned by determineQuestionType
-type PrimaryType = "Text" | "Paragraph" | "Number" | "Date" | "Radio";
-
-// Type guard to map primaryType to QuestionType
-const getQuestionType = (primaryType: PrimaryType | undefined | string): QuestionType => {
-  if (!primaryType) {
-    console.warn("primaryType is undefined, defaulting to textTypes");
-    return "textTypes";
-  }
-  switch (primaryType.toLowerCase()) {
-    case "text":
-    case "paragraph":
-      return "textTypes";
-    case "number":
-      return "numberTypes";
-    case "date":
-      return "dateTypes";
-    case "radio":
-      return "radioTypes";
-    default:
-      console.warn(`Unknown primaryType "${primaryType}", defaulting to textTypes`);
-      return "textTypes";
-  }
-};
 
 interface DivWithDropdownProps {
   textValue: string;
@@ -107,58 +45,30 @@ const DivWithDropdown: React.FC<DivWithDropdownProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [isRequired, setIsRequired] = useState(initialRequired);
   const [typeChanged, setTypeChanged] = useState(initialTypeChanged);
-  const { findPlaceholderByValue, updateQuestion, determineQuestionType } = useQuestionEditContext();
-
-  const enhancedDetermineQuestionType = useCallback(
-    (text: string) => {
-      if (/yes\/no|radio/i.test(text)) {
-        return {
-          primaryType: "Radio" as PrimaryType,
-          primaryValue: text,
-          validTypes: ["Radio", "Text", "Paragraph"],
-        };
-      }
-      const result = determineQuestionType(text);
-      return {
-        ...result,
-        primaryType: result.primaryType as PrimaryType,
-      };
-    },
-    [determineQuestionType]
-  );
-
-  const { primaryType, primaryValue, validTypes } = enhancedDetermineQuestionType(textValue);
-  console.log(`DivWithDropdown rendering for textValue "${textValue}": primaryType=${primaryType}, primaryValue=${primaryValue}, validTypes=${validTypes}, selectedType=${selectedType}`);
+  const { findPlaceholderByValue, updateQuestion, determineQuestionType, questionMaps } = useQuestionEditContext();
+  const { primaryValue, validTypes } = determineQuestionType(textValue);
 
   const handleTypeSelect = (type: string) => {
     if (typeChanged) return;
 
-    if (validTypes.includes(type)) {
-      setSelectedType(type);
-      onTypeChange(index, type);
-      setTypeChanged(true);
-      onTypeChanged(index, true);
+    setSelectedType(type);
+    onTypeChange(index, type);
+    setTypeChanged(true);
+    onTypeChanged(index, true);
 
-      let newQuestionText = questionText;
-      if (questionText === primaryValue || questionText === "No text selected") {
-        newQuestionText = primaryValue || "No text selected";
-        setQuestionText(newQuestionText);
-        onQuestionTextChange(index, newQuestionText);
+    let newQuestionText = questionText;
+    if (questionText === primaryValue || questionText === "No text selected") {
+      if (type.toLowerCase() === "radio" && primaryValue) {
+        newQuestionText = primaryValue;
+      } else if (type.toLowerCase() === "text" && primaryValue) {
+        newQuestionText = primaryValue;
+      } else if (type.toLowerCase() === "number" && primaryValue) {
+        newQuestionText = primaryValue;
+      } else if (type.toLowerCase() === "date" && primaryValue) {
+        newQuestionText = primaryValue;
       }
-      console.log(`Dropdown at index ${index} selected type: ${type}`);
-
-      // Trigger tour advancement for specific placeholders
-      const currentStep = sessionStorage.getItem("tourStep");
-      if (currentStep === "set-type-employer-name" && textValue === "Employer Name" && type === "Text") {
-        sessionStorage.setItem("tourStep", "set-required-employer-name");
-        (window as any).tourRef?.show("set-required-employer-name");
-      } else if (currentStep === "set-type-employee-name" && textValue === "Employee Name" && type === "Text") {
-        sessionStorage.setItem("tourStep", "set-required-employee-name");
-        (window as any).tourRef?.show("set-required-employee-name");
-      } else if (currentStep === "set-type-agreement-date" && textValue === "Agreement Date" && type === "Date") {
-        sessionStorage.setItem("tourStep", "set-required-agreement-date");
-        (window as any).tourRef?.show("set-required-agreement-date");
-      }
+      setQuestionText(newQuestionText);
+      onQuestionTextChange(index, newQuestionText);
     }
     setIsOpen(false);
   };
@@ -171,29 +81,18 @@ const DivWithDropdown: React.FC<DivWithDropdownProps> = ({
     const { primaryType } = determineQuestionType(oldText);
     const placeholder = findPlaceholderByValue(oldText);
 
-    if (placeholder && primaryType) {
-      const typeKey = getQuestionType(primaryType);
-      updateQuestion(typeKey, placeholder, newText);
-    } else {
-      const defaultType: QuestionType = "textTypes";
-      if (placeholder) {
-        updateQuestion(defaultType, placeholder, newText);
-      } else {
-        console.warn(`Skipping updateQuestion: Invalid primaryType "${primaryType}" or placeholder "${placeholder}" for oldText "${oldText}"`);
-      }
-    }
+    if (placeholder && primaryType !== "Unknown") {
+      const typeKey = (primaryType.toLowerCase() + "Types") as string;
 
-    // Trigger tour advancement for specific placeholders
-    const currentStep = sessionStorage.getItem("tourStep");
-    if (currentStep === "edit-question-employer-name" && textValue === "Employer Name") {
-      sessionStorage.setItem("tourStep", "set-type-employer-name");
-      (window as any).tourRef?.show("set-type-employer-name");
-    } else if (currentStep === "edit-question-employee-name" && textValue === "Employee Name") {
-      sessionStorage.setItem("tourStep", "set-type-employee-name");
-      (window as any).tourRef?.show("set-type-employee-name");
-    } else if (currentStep === "edit-question-agreement-date" && textValue === "Agreement Date") {
-      sessionStorage.setItem("tourStep", "set-type-agreement-date");
-      (window as any).tourRef?.show("set-type-agreement-date");
+      if (
+        typeKey === "textTypes" ||
+        typeKey === "numberTypes" ||
+        typeKey === "dateTypes" ||
+        typeKey === "radioTypes"
+      ) {
+        updateQuestion(typeKey as keyof QuestionMaps, placeholder, newText);
+      }
+      console.log("question map: ", questionMaps);
     }
   };
 
@@ -201,46 +100,14 @@ const DivWithDropdown: React.FC<DivWithDropdownProps> = ({
     const newRequired = !isRequired;
     setIsRequired(newRequired);
     onRequiredChange(index, newRequired);
-    console.log(`Required status for index ${index} set to: ${newRequired}`);
-
-    // Trigger tour advancement for specific placeholders
-    const currentStep = sessionStorage.getItem("tourStep");
-    if (currentStep === "set-required-employer-name" && textValue === "Employer Name" && newRequired) {
-      sessionStorage.setItem("tourStep", "edit-question-employee-name");
-      (window as any).tourRef?.show("edit-question-employee-name");
-    } else if (currentStep === "set-required-employee-name" && textValue === "Employee Name" && newRequired) {
-      sessionStorage.setItem("tourStep", "edit-question-agreement-date");
-      (window as any).tourRef?.show("edit-question-agreement-date");
-    } else if (currentStep === "set-required-agreement-date" && textValue === "Agreement Date" && newRequired) {
-      sessionStorage.setItem("tourStep", "click-next-button");
-      (window as any).tourRef?.show("click-next-button");
-    }
   };
 
-  const allPossibleTypes = ["Text", "Paragraph", "Radio", "Number", "Date"];
-
   return (
-    <div
-      className={`flex items-center space-x-8 w-full relative ${
-        isFollowUp ? "ml-0" : ""
-      }`}
-    >
+    <div className={`flex items-center space-x-8 w-full relative ${isFollowUp ? "ml-0" : ""}`}>
       <button className="flex flex-col justify-between h-10 w-12 p-1 transform hover:scale-105 transition-all duration-300">
-        <span
-          className={`block h-1 w-full rounded-full ${
-            isDarkMode ? "bg-teal-400" : "bg-teal-600"
-          }`}
-        ></span>
-        <span
-          className={`block h-1 w-full rounded-full ${
-            isDarkMode ? "bg-teal-400" : "bg-teal-600"
-          }`}
-        ></span>
-        <span
-          className={`block h-1 w-full rounded-full ${
-            isDarkMode ? "bg-teal-400" : "bg-teal-600"
-          }`}
-        ></span>
+        <span className={`block h-1 w-full rounded-full ${isDarkMode ? "bg-teal-400" : "bg-teal-600"}`}></span>
+        <span className={`block h-1 w-full rounded-full ${isDarkMode ? "bg-teal-400" : "bg-teal-600"}`}></span>
+        <span className={`block h-1 w-full rounded-full ${isDarkMode ? "bg-teal-400" : "bg-teal-600"}`}></span>
       </button>
       <div
         className={`relative w-full mt-5 max-w-lg h-36 rounded-xl shadow-lg flex flex-col items-center justify-center text-lg font-semibold p-6 z-10 transform transition-all duration-300 hover:shadow-xl ${
@@ -250,11 +117,7 @@ const DivWithDropdown: React.FC<DivWithDropdownProps> = ({
         }`}
       >
         <div className="relative w-full flex items-center">
-          <div
-            className={`h-0.5 w-1/2 absolute left-0 opacity-50 ${
-              isDarkMode ? "bg-teal-400" : "bg-teal-500"
-            }`}
-          ></div>
+          <div className={`h-0.5 w-1/2 absolute left-0 opacity-50 ${isDarkMode ? "bg-teal-400" : "bg-teal-500"}`}></div>
           <input
             type="text"
             value={questionText}
@@ -272,60 +135,52 @@ const DivWithDropdown: React.FC<DivWithDropdownProps> = ({
         <div className="absolute top-1/2 right-6 transform -translate-y-1/2 flex items-center space-x-2">
           <div className="relative">
             <button
-              data-testid={`type-dropdown-${index}`}
               className={`flex items-center space-x-2 text-sm px-3 py-1 rounded-lg shadow-md transition-all duration-300 ${
                 isDarkMode
                   ? "bg-gray-600/80 text-teal-200 hover:bg-gray-500"
                   : "bg-white/80 text-teal-900 hover:bg-white"
-              } ${typeChanged ? "opacity-50 cursor-not-allowed" : ""}`}
+              } ${typeChanged ? 'opacity-50 cursor-not-allowed' : ''}`}
               onClick={() => !typeChanged && setIsOpen(!isOpen)}
               disabled={typeChanged}
             >
               <span>{selectedType}</span>
-              {!typeChanged && (
-                <FaChevronDown
-                  className={isDarkMode ? "text-teal-400" : "text-teal-600"}
-                />
-              )}
+              {!typeChanged && <FaChevronDown className={isDarkMode ? "text-teal-400" : "text-teal-600"} />}
             </button>
             {isOpen && !typeChanged && (
               <div
-                className={`absolute right-0 mt-1 w-40 rounded-lg shadow-lg z-50 overflow-y-auto max-h-[150px] ${
+                className={`absolute right-0 mt-1 w-40 h-[12vh] rounded-lg shadow-lg z-50 ${
                   isDarkMode
                     ? "bg-gray-700/90 backdrop-blur-sm border-gray-600"
                     : "bg-white/90 backdrop-blur-sm border-teal-100"
-                } scrollbar-thin scrollbar-thumb-rounded scrollbar-thumb-teal-500 scrollbar-track-transparent`}
+                }`}
+                style={{
+                  maxHeight: "150px",
+                  overflowY: "auto",
+                  scrollbarWidth: "none",
+                  msOverflowStyle: "none",
+                }}
               >
-                {allPossibleTypes.map((type) => (
-                  <div
-                    key={type}
-                    className={`px-4 py-2 cursor-pointer transition-all duration-200 ${
-                      isDarkMode
-                        ? "text-teal-200 hover:bg-gray-600"
-                        : "text-teal-800 hover:bg-teal-50"
-                    } ${
-                      !validTypes.includes(type)
-                        ? "opacity-50 cursor-not-allowed"
-                        : ""
-                    }`}
-                    onClick={() => handleTypeSelect(type)}
-                  >
-                    {type}
-                  </div>
-                ))}
+                <div className="hide-scrollbar">
+                  {validTypes.map((type) => (
+                    <div
+                      key={type}
+                      className={`px-4 py-2 cursor-pointer transition-all duration-200 ${
+                        isDarkMode
+                          ? "text-teal-200 hover:bg-gray-600"
+                          : "text-teal-800 hover:bg-teal-50"
+                      }`}
+                      onClick={() => handleTypeSelect(type)}
+                    >
+                      {type}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
           <label className="flex items-center space-x-2 cursor-pointer">
-            <span
-              className={`text-sm ${
-                isDarkMode ? "text-teal-300" : "text-teal-700"
-              }`}
-            >
-              Required
-            </span>
+            <span className={`text-sm ${isDarkMode ? "text-teal-300" : "text-teal-700"}`}>Required</span>
             <div
-              data-testid={`required-toggle-${index}`}
               className={`relative w-12 h-6 rounded-full p-1 transition-colors duration-300 ${
                 isRequired
                   ? "bg-green-500"
@@ -350,71 +205,50 @@ const DivWithDropdown: React.FC<DivWithDropdownProps> = ({
 
 const Questionnaire = () => {
   const { isDarkMode } = useContext(ThemeContext);
-  const { totalScore, updateQuestionnaireScore } = useScore();
+  const { questionnaireScore, updateQuestionnaireScore } = useScore();
   const [leftActive, setLeftActive] = useState(true);
   const [rightActive, setRightActive] = useState(false);
   const { highlightedTexts } = useHighlightedText();
-  const {
-    selectedTypes,
-    setSelectedTypes,
-    setEditedQuestions,
-    requiredQuestions,
-    setRequiredQuestions,
-  } = useQuestionType();
+  const { selectedTypes, setSelectedTypes, setEditedQuestions, requiredQuestions, setRequiredQuestions } = useQuestionType();
   const [uniqueQuestions, setUniqueQuestions] = useState<string[]>([]);
   const [questionOrder, setQuestionOrder] = useState<number[]>([]);
+  const [duplicateDetected] = useState<boolean>(false);
   const [questionTexts, setQuestionTexts] = useState<string[]>([]);
-  const [scoredQuestions, setScoredQuestions] = useState<
-    Record<number, { typeScored: boolean; requiredScored: boolean }>
-  >({});
+  const [scoredQuestions, setScoredQuestions] = useState<Record<number, { typeScored: boolean; requiredScored: boolean }>>({});
   const [bonusAwarded, setBonusAwarded] = useState(false);
-  const [scoreChange, setScoreChange] = useState<number | null>(null);
+  const [scoreFeedback, setScoreFeedback] = useState<{ points: number; id: number } | null>(null);
   const [typeChangedStates, setTypeChangedStates] = useState<boolean[]>([]);
-  const tourRef = useRef<ShepherdTour | null>(null);
-  const { updateQuestion, determineQuestionType, findPlaceholderByValue } =
-    useQuestionEditContext();
+  const feedbackId = useRef(0);
+  const { updateQuestion, determineQuestionType, findPlaceholderByValue } = useQuestionEditContext();
   const navigate = useNavigate();
-  const prevHighlightedTextsRef = useRef<string[]>([]);
 
-  const SMALL_CONDITION_TEXT = "The Employee may be required to work at other locations.";
-  const SMALL_CONDITION_QUESTION = "Does the employee need to work at additional locations besides the normal place of work?";
-  const FOLLOW_UP_TEXT = "other locations";
-  const FOLLOW_UP_QUESTION = "What is the additional work location?";
+  // Add state to track the current tour step
+  const [tourStep, setTourStep] = useState<string | null>(sessionStorage.getItem("questionnaireTourStep") || "customize-questionnaire");
+
+  const followUpQuestions = [
+    "What's the probation period length?",
+    "What's the probation extension length?",
+    "How many weeks?",
+    "Who is the HR/Relevant Contact?",
+    "What is the additional work location?",
+  ];
+
+  const showFeedback = (points: number) => {
+    feedbackId.current += 1;
+    setScoreFeedback({ points, id: feedbackId.current });
+    setTimeout(() => setScoreFeedback(null), 1500);
+  };
+
+  const initializeRequiredStatus = (texts: string[]) => {
+    return texts.map(() => false);
+  };
 
   const enhancedDetermineQuestionType = useCallback(
     (text: string) => {
-      if (text === SMALL_CONDITION_TEXT) {
-        console.log(`Hardcoding type for "${text}": Radio, question: ${SMALL_CONDITION_QUESTION}`);
-        return {
-          primaryType: "Radio" as PrimaryType,
-          primaryValue: SMALL_CONDITION_QUESTION,
-          validTypes: ["Radio"],
-          correctType: "Radio",
-        };
-      }
-      if (text === FOLLOW_UP_TEXT) {
-        console.log(`Hardcoding type for "${text}": Text, question: ${FOLLOW_UP_QUESTION}`);
-        return {
-          primaryType: "Text" as PrimaryType,
-          primaryValue: FOLLOW_UP_QUESTION,
-          validTypes: ["Text"],
-          correctType: "Text",
-        };
-      }
-      if (/yes\/no|radio/i.test(text)) {
-        return {
-          primaryType: "Radio" as PrimaryType,
-          primaryValue: text,
-          validTypes: ["Radio", "Text", "Paragraph"],
-          correctType: "Radio",
-        };
-      }
       const result = determineQuestionType(text);
-      console.log(`Determined type for "${text}": primaryType=${result.primaryType}, primaryValue=${result.primaryValue}`);
       return {
         ...result,
-        primaryType: result.primaryType as PrimaryType,
-        correctType: result.primaryType as PrimaryType,
+        correctType: result.primaryType,
       };
     },
     [determineQuestionType]
@@ -435,10 +269,7 @@ const Questionnaire = () => {
       const points = isCorrect ? 2 : -2;
 
       updateQuestionnaireScore(points);
-      console.log(`Scored type selection for index ${index}: ${points} points`);
-
-      setScoreChange(points);
-      setTimeout(() => setScoreChange(null), 2000);
+      showFeedback(points);
 
       setScoredQuestions((prev) => ({
         ...prev,
@@ -457,9 +288,7 @@ const Questionnaire = () => {
       if (isRequired) {
         if (!scoredQuestions[index]?.requiredScored) {
           updateQuestionnaireScore(2);
-          console.log(`Required status for "${uniqueQuestions[index]}" set to true, scored +2`);
-          setScoreChange(2);
-          setTimeout(() => setScoreChange(null), 2000);
+          showFeedback(2);
           setScoredQuestions((prev) => ({
             ...prev,
             [index]: {
@@ -472,9 +301,7 @@ const Questionnaire = () => {
       } else {
         if (scoredQuestions[index]?.requiredScored) {
           updateQuestionnaireScore(-2);
-          console.log(`Required status for "${uniqueQuestions[index]}" set to false, scored -2`);
-          setScoreChange(-2);
-          setTimeout(() => setScoreChange(null), 2000);
+          showFeedback(-2);
           setScoredQuestions((prev) => ({
             ...prev,
             [index]: {
@@ -486,7 +313,7 @@ const Questionnaire = () => {
         }
       }
     },
-    [updateQuestionnaireScore, scoredQuestions, uniqueQuestions]
+    [updateQuestionnaireScore, scoredQuestions]
   );
 
   const checkForBonus = useCallback(() => {
@@ -494,7 +321,7 @@ const Questionnaire = () => {
 
     const allCorrect = uniqueQuestions.every((text, index) => {
       const { correctType } = enhancedDetermineQuestionType(text);
-      const selectedType = selectedTypes[index] ?? "Text";
+      const selectedType = selectedTypes[index];
 
       const typeCorrect =
         selectedType === correctType ||
@@ -507,26 +334,147 @@ const Questionnaire = () => {
 
     if (allCorrect) {
       updateQuestionnaireScore(10);
-      console.log(`Bonus awarded: All question types and required statuses are correct. +10 points`);
-      setScoreChange(10);
-      setTimeout(() => setScoreChange(null), 2000);
+      showFeedback(10);
       setBonusAwarded(true);
     }
-  }, [
-    uniqueQuestions,
-    selectedTypes,
-    requiredQuestions,
-    enhancedDetermineQuestionType,
-    bonusAwarded,
-    updateQuestionnaireScore,
-  ]);
+  }, [uniqueQuestions, selectedTypes, requiredQuestions, enhancedDetermineQuestionType, bonusAwarded, updateQuestionnaireScore]);
 
-  // Shepherd.js tour for Level 1 (Automate Placeholders)
   useEffect(() => {
-    const selectedPart = parseInt(localStorage.getItem("selectedPart") || "0", 10);
-    if (selectedPart !== 1) return; // Only run tour for Level 1
+    const processedTexts: string[] = [];
+    const questionMap = new Map();
 
-    const tour = new ShepherdStatic.Tour({
+    const isProbationaryClauseSelected = highlightedTexts.some(
+      (text) =>
+        text.toLowerCase().includes("probationary period") &&
+        text.includes("Probation Period Length") &&
+        text.length > "Probation Period Length".length
+    );
+
+    const isAdditionalLocationsClauseSelected = highlightedTexts.some((text) =>
+      text.includes("The Employee may be required to work at [other locations].") ||
+      text.includes("/The Employee may be required to work at [other locations]./")
+    );
+
+    const filteredQuestions = highlightedTexts.filter((text) => {
+      const { primaryValue } = enhancedDetermineQuestionType(text);
+      const isFollowUp = followUpQuestions.includes(primaryValue || "");
+
+      if (isProbationaryClauseSelected && text === "Probation Period Length") {
+        return false;
+      }
+
+      const shouldInclude =
+        text === "USA" ||
+        text.includes("The Employee may be required to work at [other locations].") ||
+        (text === "other locations" && isAdditionalLocationsClauseSelected) ||
+        (primaryValue === "What's the probation period length?" &&
+          text === "Probation Period Length" &&
+          !isProbationaryClauseSelected) ||
+        (!isFollowUp && text !== "other locations" && !text.includes("The Employee may be required to work at [other locations]."));
+
+      return shouldInclude;
+    });
+
+    for (const text of filteredQuestions) {
+      const { primaryValue } = enhancedDetermineQuestionType(text);
+      const displayValue = primaryValue || text;
+      if (displayValue && !questionMap.has(displayValue)) {
+        questionMap.set(displayValue, text);
+        processedTexts.push(text);
+      }
+    }
+
+    if (highlightedTexts.includes("USA") && !processedTexts.includes("USA")) {
+      processedTexts.push("USA");
+    }
+
+    const orderedTexts: string[] = [];
+    const smallConditionText = "The Employee may be required to work at [other locations].";
+    const followUpText = "other locations";
+
+    filteredQuestions.forEach((text) => {
+      if (text.includes(smallConditionText) || text === "/The Employee may be required to work at [other locations]./") {
+        orderedTexts.push(text);
+        if (highlightedTexts.includes(followUpText) && !orderedTexts.includes(followUpText)) {
+          orderedTexts.push(followUpText);
+        }
+      } else if (text !== followUpText) {
+        orderedTexts.push(text);
+      }
+    });
+
+    setUniqueQuestions(orderedTexts);
+    const initialRequired = initializeRequiredStatus(orderedTexts);
+    setRequiredQuestions(initialRequired);
+
+    const initialTexts = orderedTexts.map((text) => {
+      const { primaryValue } = determineQuestionType(text);
+      return primaryValue || "No text selected";
+    });
+
+    const savedTypes = sessionStorage.getItem("selectedQuestionTypes");
+    let initialTypes: string[] = [];
+    if (savedTypes) {
+      const parsedTypes = JSON.parse(savedTypes);
+      if (parsedTypes.length !== orderedTexts.length) {
+        console.warn("Mismatch in savedTypes length. Resetting to default 'Text'.");
+        initialTypes = orderedTexts.map(() => "Text");
+      } else {
+        initialTypes = orderedTexts.map((_, index) => parsedTypes[index] ?? "Text");
+      }
+    } else {
+      initialTypes = orderedTexts.map(() => "Text");
+    }
+
+    const savedTypeChanged = sessionStorage.getItem("typeChangedStates");
+    let initialTypeChanged: boolean[] = [];
+    if (savedTypeChanged) {
+      const parsedTypeChanged = JSON.parse(savedTypeChanged);
+      if (parsedTypeChanged.length !== orderedTexts.length) {
+        console.warn("Mismatch in savedTypeChanged length. Resetting to false.");
+        initialTypeChanged = orderedTexts.map(() => false);
+      } else {
+        initialTypeChanged = orderedTexts.map((_, index) => parsedTypeChanged[index] ?? false);
+      }
+    } else {
+      initialTypeChanged = orderedTexts.map(() => false);
+    }
+
+    const savedOrder = sessionStorage.getItem("questionOrder");
+    let initialOrder: number[] = [];
+    if (savedOrder) {
+      initialOrder = JSON.parse(savedOrder);
+      if (initialOrder.length !== orderedTexts.length) {
+        initialOrder = orderedTexts.map((_, index) => index);
+      }
+    } else {
+      initialOrder = orderedTexts.map((_, index) => index);
+    }
+
+    setQuestionOrder(initialOrder);
+    setQuestionTexts(initialTexts);
+    setSelectedTypes(initialTypes);
+    setEditedQuestions(initialTexts);
+    setTypeChangedStates(initialTypeChanged);
+    setScoredQuestions({});
+    setBonusAwarded(false);
+
+    console.log("Initial typeChangedStates:", initialTypeChanged);
+    console.log("Initial selectedTypes:", initialTypes);
+    console.log("Initial questionTexts:", initialTexts);
+
+    sessionStorage.setItem("selectedQuestionTypes", JSON.stringify(initialTypes));
+    sessionStorage.setItem("typeChangedStates", JSON.stringify(initialTypeChanged));
+    sessionStorage.setItem("questionOrder", JSON.stringify(initialOrder));
+  }, [highlightedTexts, setSelectedTypes, setEditedQuestions, setRequiredQuestions, enhancedDetermineQuestionType]);
+
+  useEffect(() => {
+    checkForBonus();
+  }, [selectedTypes, requiredQuestions, checkForBonus]);
+
+  // Add Shepherd.js tour for the Questionnaire tab
+  useEffect(() => {
+    const tour = new Shepherd.Tour({
       defaultStepOptions: {
         cancelIcon: { enabled: true },
         classes: "shadow-md bg-purple-dark",
@@ -534,470 +482,128 @@ const Questionnaire = () => {
       },
       useModalOverlay: true,
       confirmCancel: false,
-      tourName: `questionnaire-level1-${Date.now()}`,
+      tourName: `questionnaire-tour-${Date.now()}`,
     });
 
-    tourRef.current = tour;
-    (window as any).tourRef = tour; // Store tour in global scope for DivWithDropdown access
-
+    // Step 3: Customize the Questionnaire
     tour.addStep({
-      id: "welcome",
+      id: "customize-questionnaire",
       text: `
         <div class="welcome-message">
-          <strong class="welcome-title">📝 Welcome to the Questionnaire for Level 1!</strong>
-          <p class="welcome-text">Here, you'll create questions for the placeholders you selected.</p>
-          <p class="mission-text"><strong>Your mission:</strong> Edit questions for [Employer Name], [Employee Name], and [Agreement Date], set their types, and mark them as required.</p>
+          <strong class="welcome-title">Welcome to the Questionnaire forge!</strong>
+          <p class="welcome-text">Here, you craft the questions that feed your placeholders.</p>
+          <p class="mission-text">See the default question text for [Employer Name]? Go ahead and tweak it if you desire—like 'Provide the name of the Employer:'</p>
         </div>
       `,
-      attachTo: { element: document.body, on: "bottom-start" },
-      classes: "shepherd-theme-custom animate__animated animate__fadeIn",
+      attachTo: { element: ".max-w-4xl", on: "top" },
       buttons: [
         {
-          text: "Start Editing →",
+          text: "Next →",
           action: () => {
-            sessionStorage.setItem("tourStep", "edit-question-employer-name");
+            // Simulate editing the question text
+            const input = document.querySelector('input[value="Employer Name"]') as HTMLInputElement;
+            if (input) {
+              input.value = "Provide the name of the Employer:";
+              input.dispatchEvent(new Event("change", { bubbles: true }));
+            }
             tour.next();
           },
         },
       ],
     });
 
+    // Step 4: Explore Question Types
     tour.addStep({
-      id: "edit-question-employer-name",
-      text: "Edit the question text for <strong>Employer Name</strong>. For example, type 'What is the employer's name?'.",
-      attachTo: {
-        element: document.querySelector(`input[value="Employer Name"]`) ?? document.body,
-        on: "bottom",
-      },
-      buttons: [
-        {
-          text: "Next →",
-          action: () => {
-            // Handled by handleQuestionTextChange
-          },
-        },
-      ],
+      id: "explore-question-types",
+      text: `
+        Check this out: the question type is set to 'Text' by default—perfect for a name like [Employer Name]. But you’re the boss! You can switch it to 'Number' for things like salaries, or 'Radio Button' for yes/no options. For now, 'Text' is spot-on. Leave it as is and let’s move forward!
+      `,
+      attachTo: { element: ".relative button", on: "bottom" },
+      buttons: [{ text: "Next →", action: tour.next }],
     });
 
+    // Step 5: Test It in Live Document Generation
     tour.addStep({
-      id: "set-type-employer-name",
-      text: "Set the question type for <strong>Employer Name</strong> to <strong>Text</strong>. Click the dropdown and select 'Text'.",
-      attachTo: {
-        element: document.querySelector(`[data-testid="type-dropdown-0"]`) ?? document.body,
-        on: "bottom",
-      },
+      id: "test-live-generation",
+      text: `
+        Time to see your automation in action! Click 'Live Document Generation' to test your work. On this page, find the answer field tied to [Employer Name]. Type in 'John Doe' as the employer’s name, then hit 'Next' to witness the magic. Watch as [Employer Name] transforms into 'John Doe' in the document!
+      `,
+      attachTo: { element: "#Live-Document-Generation-button", on: "left" },
       buttons: [
         {
-          text: "Next →",
+          text: "Go to Live Generation →",
           action: () => {
-            // Handled by handleTypeSelect
-          },
-        },
-      ],
-    });
-
-    tour.addStep({
-      id: "set-required-employer-name",
-      text: "Mark the <strong>Employer Name</strong> question as <strong>Required</strong> by toggling the switch.",
-      attachTo: {
-        element: document.querySelector(`[data-testid="required-toggle-0"]`) ?? document.body,
-        on: "bottom",
-      },
-      buttons: [
-        {
-          text: "Next →",
-          action: () => {
-            // Handled by handleRequiredToggle
-          },
-        },
-      ],
-    });
-
-    tour.addStep({
-      id: "edit-question-employee-name",
-      text: "Now edit the question text for <strong>Employee Name</strong>. For example, type 'What is the employee's name?'.",
-      attachTo: {
-        element: document.querySelector(`input[value="Employee Name"]`) ?? document.body,
-        on: "bottom",
-      },
-      buttons: [
-        {
-          text: "Next →",
-          action: () => {
-            // Handled by handleQuestionTextChange
-          },
-        },
-      ],
-    });
-
-    tour.addStep({
-      id: "set-type-employee-name",
-      text: "Set the question type for <strong>Employee Name</strong> to <strong>Text</strong>. Click the dropdown and select 'Text'.",
-      attachTo: {
-        element: document.querySelector(`[data-testid="type-dropdown-1"]`) ?? document.body,
-        on: "bottom",
-      },
-      buttons: [
-        {
-          text: "Next →",
-          action: () => {
-            // Handled by handleTypeSelect
-          },
-        },
-      ],
-    });
-
-    tour.addStep({
-      id: "set-required-employee-name",
-      text: "Mark the <strong>Employee Name</strong> question as <strong>Required</strong> by toggling the switch.",
-      attachTo: {
-        element: document.querySelector(`[data-testid="required-toggle-1"]`) ?? document.body,
-        on: "bottom",
-      },
-      buttons: [
-        {
-          text: "Next →",
-          action: () => {
-            // Handled by handleRequiredToggle
-          },
-        },
-      ],
-    });
-
-    tour.addStep({
-      id: "edit-question-agreement-date",
-      text: "Edit the question text for <strong>Agreement Date</strong>. For example, type 'What is the agreement date?'.",
-      attachTo: {
-        element: document.querySelector(`input[value="Agreement Date"]`) ?? document.body,
-        on: "bottom",
-      },
-      buttons: [
-        {
-          text: "Next →",
-          action: () => {
-            // Handled by handleQuestionTextChange
-          },
-        },
-      ],
-    });
-
-    tour.addStep({
-      id: "set-type-agreement-date",
-      text: "Set the question type for <strong>Agreement Date</strong> to <strong>Date</strong>. Click the dropdown and select 'Date'.",
-      attachTo: {
-        element: document.querySelector(`[data-testid="type-dropdown-2"]`) ?? document.body,
-        on: "bottom",
-      },
-      buttons: [
-        {
-          text: "Next →",
-          action: () => {
-            // Handled by handleTypeSelect
-          },
-        },
-      ],
-    });
-
-    tour.addStep({
-      id: "set-required-agreement-date",
-      text: "Mark the <strong>Agreement Date</strong> question as <strong>Required</strong> by toggling the switch.",
-      attachTo: {
-        element: document.querySelector(`[data-testid="required-toggle-2"]`) ?? document.body,
-        on: "bottom",
-      },
-      buttons: [
-        {
-          text: "Next →",
-          action: () => {
-            // Handled by handleRequiredToggle
-          },
-        },
-      ],
-    });
-
-    tour.addStep({
-      id: "click-next-button",
-      text: "🎉 Great job! You've completed the Questionnaire setup. Now, click the <strong>Next</strong> button below to proceed to the Live Generation tab and see your document come to life!",
-      attachTo: {
-        element: document.querySelector(`[data-testid="next-button"]`) ?? document.body,
-        on: "top",
-      },
-      buttons: [
-        {
-          text: "Finish →",
-          action: () => {
-            sessionStorage.removeItem("tourStep");
+            setTourStep("completed");
+            sessionStorage.setItem("questionnaireTourStep", "completed");
+            navigate("/Live_Generation");
             tour.complete();
           },
         },
       ],
     });
 
-    const initialTourStep = sessionStorage.getItem("tourStep") || "welcome";
-    if (initialTourStep) {
+    // Step 6: Resume after navigation (optional step for completeness)
+    tour.addStep({
+      id: "completed",
+      text: `
+        You've completed the Questionnaire tour! Feel free to explore more or continue with Live Document Generation.
+      `,
+      attachTo: { element: document.body, on: "top" }, // Fixed: Changed "center" to "top"
+      buttons: [
+        {
+          text: "Finish →",
+          action: () => {
+            setTourStep(null);
+            sessionStorage.removeItem("questionnaireTourStep");
+            tour.complete();
+          },
+        },
+      ],
+    });
+
+    // Start or resume the tour based on the tourStep state
+    if (tourStep && uniqueQuestions.length > 0) {
       tour.start();
-      tour.show(initialTourStep);
+      tour.show(tourStep);
     }
 
     return () => {
       tour.complete();
-      delete (window as any).tourRef;
     };
-  }, [navigate]);
-
-  useEffect(() => {
-    const normalizedHighlightedTexts = highlightedTexts.map((text) =>
-      text
-        .replace(/[{}]/g, "")
-        .replace(/\[|\]/g, "")
-        .replace(/\/\//g, "")
-        .replace(/\//g, "")
-        .trim()
-    );
-    const uniqueHighlightedTexts = [...new Set(normalizedHighlightedTexts)];
-    console.log("Raw highlightedTexts:", highlightedTexts);
-    console.log("Normalized highlightedTexts:", normalizedHighlightedTexts);
-    console.log("Unique highlightedTexts:", uniqueHighlightedTexts);
-
-    if (
-      JSON.stringify(uniqueHighlightedTexts) ===
-      JSON.stringify(prevHighlightedTextsRef.current)
-    ) {
-      console.log("No change in highlightedTexts, skipping state updates");
-      return;
-    }
-
-    prevHighlightedTextsRef.current = uniqueHighlightedTexts;
-
-    let savedState: Record<
-      string,
-      {
-        type: string;
-        typeChanged: boolean;
-        questionText: string;
-        required: boolean;
-        scored: { typeScored: boolean; requiredScored: boolean };
-        order: number;
-      }
-    > = {};
-
-    const savedStateData = sessionStorage.getItem("questionnaireState");
-    if (savedStateData) {
-      try {
-        savedState = JSON.parse(savedStateData);
-        console.log("Loaded saved state from sessionStorage:", savedState);
-      } catch (error) {
-        console.error("Error parsing sessionStorage data:", error);
-      }
-    }
-
-    const processedTexts: string[] = [];
-    const hasSmallCondition = uniqueHighlightedTexts.includes(SMALL_CONDITION_TEXT);
-    const hasFollowUp = uniqueHighlightedTexts.includes(FOLLOW_UP_TEXT);
-
-    if (hasSmallCondition) {
-      processedTexts.push(SMALL_CONDITION_TEXT);
-      console.log("Small condition detected, added to processedTexts");
-      if (hasFollowUp) {
-        processedTexts.push(FOLLOW_UP_TEXT);
-        console.log("Follow-up detected, added to processedTexts");
-      }
-    }
-
-    uniqueHighlightedTexts.forEach((text) => {
-      if (text !== SMALL_CONDITION_TEXT && text !== FOLLOW_UP_TEXT && !processedTexts.includes(text)) {
-        processedTexts.push(text);
-        console.log(`Added non-duplicate text to processedTexts: "${text}"`);
-      }
-    });
-
-    console.log("Processed texts:", processedTexts);
-
-    if (
-      processedTexts.length === uniqueQuestions.length &&
-      processedTexts.every((text, i) => text === uniqueQuestions[i])
-    ) {
-      console.log("No changes in processed texts, skipping state updates");
-      return;
-    }
-
-    const newUniqueQuestions = processedTexts;
-    const newQuestionTexts: string[] = [];
-    const newSelectedTypes: string[] = [];
-    const newTypeChangedStates: boolean[] = [];
-    const newRequiredQuestions: boolean[] = [];
-    const newScoredQuestions: Record<
-      number,
-      { typeScored: boolean; requiredScored: boolean }
-    > = {};
-    const newQuestionOrder: number[] = [];
-    const newState: Record<
-      string,
-      {
-        type: string;
-        typeChanged: boolean;
-        questionText: string;
-        required: boolean;
-        scored: { typeScored: boolean; requiredScored: boolean };
-        order: number;
-      }
-    > = {};
-
-    processedTexts.forEach((text, i) => {
-      const { primaryValue, primaryType } = enhancedDetermineQuestionType(text);
-      const saved = savedState[text];
-      const existingIndex = uniqueQuestions.indexOf(text);
-      const existing = existingIndex !== -1;
-
-      console.log(`Processing text "${text}": primaryValue=${primaryValue}, primaryType=${primaryType}`);
-
-      if (saved) {
-        newQuestionTexts.push(saved.questionText);
-        newSelectedTypes.push(saved.type);
-        newTypeChangedStates.push(saved.typeChanged);
-        newRequiredQuestions.push(saved.required);
-        newScoredQuestions[i] = saved.scored;
-        newQuestionOrder.push(saved.order);
-        newState[text] = { ...saved };
-        console.log(
-          `Restored saved state for "${text}": type=${saved.type}, questionText=${saved.questionText}`
-        );
-      } else if (existing) {
-        const existingType = selectedTypes[existingIndex] ?? "Text";
-        newQuestionTexts.push(questionTexts[existingIndex]);
-        newSelectedTypes.push(existingType);
-        newTypeChangedStates.push(typeChangedStates[existingIndex]);
-        newRequiredQuestions.push(requiredQuestions[existingIndex]);
-        newScoredQuestions[i] = scoredQuestions[existingIndex] || {
-          typeScored: false,
-          requiredScored: false,
-        };
-        newQuestionOrder.push(questionOrder[existingIndex] !== undefined ? questionOrder[existingIndex] : i);
-        newState[text] = {
-          type: existingType,
-          typeChanged: typeChangedStates[existingIndex],
-          questionText: questionTexts[existingIndex],
-          required: requiredQuestions[existingIndex],
-          scored: scoredQuestions[existingIndex] || {
-            typeScored: false,
-            requiredScored: false,
-          },
-          order: questionOrder[existingIndex] !== undefined ? questionOrder[existingIndex] : i,
-        };
-        console.log(
-          `Preserved existing state for "${text}": type=${existingType}, questionText=${questionTexts[existingIndex]}`
-        );
-      } else {
-        newQuestionTexts.push(primaryValue || "No text selected");
-        newSelectedTypes.push(primaryType || "Text");
-        newTypeChangedStates.push(false);
-        newRequiredQuestions.push(false);
-        newScoredQuestions[i] = { typeScored: false, requiredScored: false };
-        newQuestionOrder.push(i);
-        newState[text] = {
-          type: primaryType || "Text",
-          typeChanged: false,
-          questionText: primaryValue || "No text selected",
-          required: false,
-          scored: { typeScored: false, requiredScored: false },
-          order: i,
-        };
-        console.log(
-          `Initialized new question "${text}": type=${primaryType || "Text"}, questionText=${primaryValue || "No text selected"}`
-        );
-      }
-    });
-
-    setUniqueQuestions(newUniqueQuestions);
-    setQuestionTexts(newQuestionTexts);
-    setSelectedTypes(newSelectedTypes);
-    setTypeChangedStates(newTypeChangedStates);
-    setRequiredQuestions(newRequiredQuestions);
-    setScoredQuestions(newScoredQuestions);
-    setQuestionOrder(newQuestionOrder);
-    setEditedQuestions(newQuestionTexts);
-    setBonusAwarded(false);
-
-    console.log("Final uniqueQuestions:", newUniqueQuestions);
-    console.log("Final questionTexts:", newQuestionTexts);
-    console.log("Final selectedTypes:", newSelectedTypes);
-
-    sessionStorage.setItem("questionnaireState", JSON.stringify(newState));
-  }, [
-    highlightedTexts,
-    enhancedDetermineQuestionType,
-    determineQuestionType,
-    setSelectedTypes,
-    setEditedQuestions,
-    setRequiredQuestions,
-    uniqueQuestions,
-    selectedTypes,
-    typeChangedStates,
-    questionTexts,
-    requiredQuestions,
-    scoredQuestions,
-    questionOrder,
-  ]);
-
-  useEffect(() => {
-    checkForBonus();
-  }, [checkForBonus]);
+  }, [tourStep, uniqueQuestions, navigate]);
 
   const handleTypeChange = (index: number, type: string) => {
     const newTypes = [...selectedTypes];
     newTypes[index] = type;
     setSelectedTypes(newTypes);
-
     sessionStorage.setItem("selectedQuestionTypes", JSON.stringify(newTypes));
-
-    const newState = {
-      ...JSON.parse(sessionStorage.getItem("questionnaireState") || "{}"),
-      [uniqueQuestions[index]]: {
-        ...JSON.parse(sessionStorage.getItem("questionnaireState") || "{}")[uniqueQuestions[index]],
-        type,
-        typeChanged: true,
-      },
-    };
-    sessionStorage.setItem("questionnaireState", JSON.stringify(newState));
     scoreTypeSelection(index, type);
 
     const textValue = uniqueQuestions[index];
     const { primaryValue } = enhancedDetermineQuestionType(textValue);
     const newTexts = [...questionTexts];
 
-    if (
-      newTexts[index] === primaryValue ||
-      newTexts[index] === "No text selected"
-    ) {
-      newTexts[index] = primaryValue || "No text selected";
+    if (newTexts[index] === primaryValue || newTexts[index] === "No text selected") {
+      if (type.toLowerCase() === "radio" && primaryValue) {
+        newTexts[index] = primaryValue;
+      } else if (type.toLowerCase() === "text" && primaryValue) {
+        newTexts[index] = primaryValue;
+      } else if (type.toLowerCase() === "number" && primaryValue) {
+        newTexts[index] = primaryValue;
+      } else if (type.toLowerCase() === "date" && primaryValue) {
+        newTexts[index] = primaryValue;
+      }
       setQuestionTexts(newTexts);
       setEditedQuestions(newTexts);
-      newState[uniqueQuestions[index]] = {
-        ...newState[uniqueQuestions[index]],
-        questionText: newTexts[index],
-      };
-      sessionStorage.setItem("questionnaireState", JSON.stringify(newState));
     }
-    console.log(`Type changed for index ${index} to: ${type}`);
   };
 
   const handleTypeChanged = (index: number, changed: boolean) => {
     const newTypeChangedStates = [...typeChangedStates];
     newTypeChangedStates[index] = changed;
     setTypeChangedStates(newTypeChangedStates);
-
-    const newState = {
-      ...JSON.parse(sessionStorage.getItem("questionnaireState") || "{}"),
-      [uniqueQuestions[index]]: {
-        ...JSON.parse(sessionStorage.getItem("questionnaireState") || "{}")[uniqueQuestions[index]],
-        typeChanged: changed,
-      },
-    };
-    sessionStorage.setItem("questionnaireState", JSON.stringify(newState));
-    console.log(
-      `Updated typeChangedStates after change at index ${index}:`,
-      newTypeChangedStates
-    );
+    sessionStorage.setItem("typeChangedStates", JSON.stringify(newTypeChangedStates));
+    console.log(`Updated typeChangedStates after change at index ${index}:`, newTypeChangedStates);
   };
 
   const handleQuestionTextChange = (index: number, newText: string) => {
@@ -1006,49 +612,27 @@ const Questionnaire = () => {
     newTexts[index] = newText;
     setQuestionTexts(newTexts);
     setEditedQuestions(newTexts);
+    const placeholder = findPlaceholderByValue(oldText) || "undefined";
+    const { primaryType } = determineQuestionType(placeholder);
 
-    const newState = {
-      ...JSON.parse(sessionStorage.getItem("questionnaireState") || "{}"),
-      [uniqueQuestions[index]]: {
-        ...JSON.parse(sessionStorage.getItem("questionnaireState") || "{}")[uniqueQuestions[index]],
-        questionText: newText,
-      },
-    };
-    sessionStorage.setItem("questionnaireState", JSON.stringify(newState));
+    if (placeholder) {
+      const typeKey = (primaryType.toLowerCase() + "Types") as string;
 
-    const placeholder = findPlaceholderByValue(oldText);
-    const { primaryType } = determineQuestionType(placeholder || oldText);
-
-    if (placeholder && primaryType) {
-      const typeKey = getQuestionType(primaryType);
-      updateQuestion(typeKey, placeholder, newText);
-    } else {
-      const defaultType: QuestionType = "textTypes";
-      if (placeholder) {
-        updateQuestion(defaultType, placeholder, newText);
-      } else {
-        console.warn(
-          `Skipping updateQuestion: Invalid primaryType "${primaryType}" or placeholder "${placeholder}" for oldText "${oldText}"`
-        );
+      if (
+        typeKey === "textTypes" ||
+        typeKey === "numberTypes" ||
+        typeKey === "dateTypes" ||
+        typeKey === "radioTypes"
+      ) {
+        updateQuestion(typeKey as keyof QuestionMaps, placeholder, newText);
       }
     }
-    console.log(`Question text changed for index ${index} to: ${newText}`);
   };
 
   const handleRequiredChange = (index: number, required: boolean) => {
     const newRequired = [...requiredQuestions];
     newRequired[index] = required;
     setRequiredQuestions(newRequired);
-
-    const newState = {
-      ...JSON.parse(sessionStorage.getItem("questionnaireState") || "{}"),
-      [uniqueQuestions[index]]: {
-        ...JSON.parse(sessionStorage.getItem("questionnaireState") || "{}")[uniqueQuestions[index]],
-        required,
-      },
-    };
-    sessionStorage.setItem("questionnaireState", JSON.stringify(newState));
-
     scoreRequiredStatus(index, required);
   };
 
@@ -1060,19 +644,17 @@ const Questionnaire = () => {
     newOrder.splice(result.destination.index, 0, reorderedItem);
 
     setQuestionOrder(newOrder);
+    sessionStorage.setItem("questionOrder", JSON.stringify(newOrder));
 
     const newUniqueQuestions = newOrder.map((index) => uniqueQuestions[index]);
     const newQuestionTexts = newOrder.map((index) => questionTexts[index]);
-    const newSelectedTypes = newOrder.map((index) => selectedTypes[index] ?? "Text");
+    const newSelectedTypes = newOrder.map((index) => selectedTypes[index]);
     const newRequiredQuestions = newOrder.map((index) => requiredQuestions[index]);
     const newTypeChangedStates = newOrder.map((index) => typeChangedStates[index]);
     const newScoredQuestions = Object.fromEntries(
       newOrder.map((originalIndex, newIndex) => [
         newIndex,
-        scoredQuestions[originalIndex] || {
-          typeScored: false,
-          requiredScored: false,
-        },
+        scoredQuestions[originalIndex] || { typeScored: false, requiredScored: false },
       ])
     );
 
@@ -1083,38 +665,12 @@ const Questionnaire = () => {
     setTypeChangedStates(newTypeChangedStates);
     setScoredQuestions(newScoredQuestions);
 
-    const newState: Record<
-      string,
-      {
-        type: string;
-        typeChanged: boolean;
-        questionText: string;
-        required: boolean;
-        scored: { typeScored: boolean; requiredScored: boolean };
-        order: number;
-      }
-    > = {};
-    newUniqueQuestions.forEach((text, i) => {
-      newState[text] = {
-        type: newSelectedTypes[i],
-        typeChanged: newTypeChangedStates[i],
-        questionText: newQuestionTexts[i],
-        required: newRequiredQuestions[i],
-        scored: newScoredQuestions[i],
-        order: newOrder[i],
-      };
-    });
-    sessionStorage.setItem("questionnaireState", JSON.stringify(newState));
-
-    console.log("Questions reordered. New order:", newOrder);
+    sessionStorage.setItem("selectedQuestionTypes", JSON.stringify(newSelectedTypes));
+    sessionStorage.setItem("typeChangedStates", JSON.stringify(newTypeChangedStates));
   };
 
-  const handleNextClick = () => {
-    sessionStorage.setItem("questionOrder_2", JSON.stringify(questionOrder));
-    sessionStorage.setItem("selectedQuestionTypes", JSON.stringify(selectedTypes));
-    navigate("/Live_Generation");
-    console.log("Navigating to Live Generation tab");
-  };
+  const selectedPart = localStorage.getItem("selectedPart");
+  const levelPath = selectedPart === "4" ? "/Level-Two-Part-Two-Demo" : "/Level-Two-Part-Two";
 
   return (
     <div
@@ -1125,75 +681,50 @@ const Questionnaire = () => {
       }`}
     >
       <Navbar
-        level={localStorage.getItem("selectedPart") === "4" ? "/Level-Two-Part-Two-Demo" : "/Level-Two-Part-Two"}
+        level={levelPath}
         questionnaire="/Questionnaire"
         live_generation="/Live_Generation"
       />
-      <div className="fixed bottom-6 left-14 transform -translate-x-1/2 z-50 flex gap-4">
+      <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex space-x-4 z-30">
         <button
-          onClick={() => navigate(-1)}
+          onClick={() => navigate("/Level-Two-Part-Two")}
           className={`px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-300 ${
-            isDarkMode
-              ? "bg-gray-700 text-teal-200 hover:bg-gray-600"
-              : "bg-teal-200 text-teal-900 hover:bg-cyan-200"
+            isDarkMode ? "bg-gray-700 text-teal-200 hover:bg-gray-600" : "bg-teal-200 text-teal-900 hover:bg-cyan-200"
           }`}
         >
-          Back
+          ← Back to Document
         </button>
         <button
-          onClick={() => {
-            sessionStorage.clear();
-            setUniqueQuestions([]);
-            setSelectedTypes([]);
-            setTypeChangedStates([]);
-            setQuestionTexts([]);
-            setRequiredQuestions([]);
-            setQuestionOrder([]);
-            setScoredQuestions({});
-            setBonusAwarded(false);
-            prevHighlightedTextsRef.current = [];
-            console.log("Full reset: sessionStorage cleared, all states reset");
-          }}
+          onClick={() => window.location.href = "/dashboard"}
           className={`px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-300 ${
-            isDarkMode
-              ? "bg-red-700 text-teal-200 hover:bg-red-600"
-              : "bg-red-200 text-teal-900 hover:bg-red-300"
+            isDarkMode ? "bg-gray-700 text-teal-200 hover:bg-gray-600" : "bg-teal-200 text-teal-900 hover:bg-cyan-200"
           }`}
         >
-          Reset
-        </button>
-        <button
-          data-testid="next-button"
-          onClick={handleNextClick}
-          className={`px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-300 ${
-            isDarkMode
-              ? "bg-teal-700 text-teal-200 hover:bg-teal-600"
-              : "bg-teal-600 text-white hover:bg-teal-500"
-          }`}
-        >
-          Next
+          Home
         </button>
       </div>
 
-      <div className="fixed top-16 left-6 z-50 px-6 py-3">
-        <div
-          className={`p-3 rounded-full shadow-lg flex items-center ${
-            isDarkMode ? "bg-gray-700 text-white" : "bg-teal-500 text-white"
-          }`}
-        >
-          <span className="font-bold mr-2">Score:</span> {totalScore}
-          {scoreChange !== null && (
-            <span
-              className={`ml-2 text-sm font-bold ${
-                scoreChange > 0 ? "text-green-400" : "text-red-400"
-              }`}
+      <div
+        className={`absolute top-16 left-6 w-40 h-12 rounded-xl shadow-lg flex items-center justify-center text-sm font-semibold z-20 ${
+          isDarkMode
+            ? "bg-gradient-to-r from-gray-700 to-gray-800 text-teal-200"
+            : "bg-gradient-to-r from-teal-200 to-cyan-200 text-teal-900"
+        }`}
+      >
+        <div className="relative">
+          Score: {questionnaireScore}
+          {scoreFeedback && (
+            <div
+              key={scoreFeedback.id}
+              className={`absolute -top-6 right-0 font-bold text-lg ${
+                scoreFeedback.points > 0 ? "text-emerald-400" : "text-rose-500"
+              } animate-[float-up_1.5s_ease-out_forwards]`}
             >
-              {scoreChange > 0 ? `+${scoreChange}` : scoreChange}
-            </span>
+              {scoreFeedback.points > 0 ? `+${scoreFeedback.points}` : scoreFeedback.points}
+            </div>
           )}
         </div>
       </div>
-
       <div
         className={`absolute top-16 right-6 w-80 h-12 rounded-xl shadow-lg flex items-center justify-center text-sm font-semibold z-20 ${
           isDarkMode
@@ -1204,13 +735,7 @@ const Questionnaire = () => {
         <div className="flex items-center space-x-6">
           <div
             className={`flex items-center space-x-2 ${
-              leftActive
-                ? isDarkMode
-                  ? "text-teal-400"
-                  : "text-teal-600"
-                : isDarkMode
-                ? "text-cyan-400"
-                : "text-cyan-500"
+              leftActive ? (isDarkMode ? "text-teal-400" : "text-teal-600") : isDarkMode ? "text-cyan-400" : "text-cyan-500"
             } transition-all duration-300`}
           >
             <span>Employer</span>
@@ -1221,11 +746,7 @@ const Questionnaire = () => {
                 setLeftActive(true);
                 setRightActive(false);
               }}
-              className={`${
-                isDarkMode
-                  ? "text-teal-400 hover:text-cyan-400"
-                  : "text-teal-600 hover:text-cyan-500"
-              } transform hover:scale-110 transition-all duration-300`}
+              className={`${isDarkMode ? "text-teal-400 hover:text-cyan-400" : "text-teal-600 hover:text-cyan-500"} transform hover:scale-110 transition-all duration-300`}
             >
               <FaChevronLeft className="text-xl" />
             </button>
@@ -1234,30 +755,33 @@ const Questionnaire = () => {
                 setRightActive(true);
                 setLeftActive(false);
               }}
-              className={`${
-                isDarkMode
-                  ? "text-teal-400 hover:text-cyan-400"
-                  : "text-teal-600 hover:text-cyan-500"
-              } transform hover:scale-110 transition-all duration-300`}
+              className={`${isDarkMode ? "text-teal-400 hover:text-cyan-400" : "text-teal-600 hover:text-cyan-500"} transform hover:scale-110 transition-all duration-300`}
             >
               <FaChevronRight className="text-xl" />
             </button>
           </div>
           <div
             className={`flex items-center space-x-2 ${
-              rightActive
-                ? isDarkMode
-                  ? "text-teal-400"
-                  : "text-teal-600"
-                : isDarkMode
-                ? "text-cyan-400"
-                : "text-cyan-500"
+              rightActive ? (isDarkMode ? "text-teal-400" : "text-teal-600") : isDarkMode ? "text-cyan-400" : "text-cyan-500"
             } transition-all duration-300`}
           >
             <span>Employee</span>
           </div>
         </div>
       </div>
+
+      {duplicateDetected && (
+        <div
+          className={`absolute top-28 right-6 p-4 rounded-xl shadow-md transition-opacity duration-400 z-10 animate-fadeIn ${
+            isDarkMode
+              ? "bg-gradient-to-r from-yellow-800 to-yellow-900 border-l-4 border-yellow-500 text-yellow-200"
+              : "bg-gradient-to-r from-yellow-100 to-yellow-200 border-l-4 border-yellow-400 text-yellow-800"
+          }`}
+        >
+          <p className="font-bold">Duplicate Question</p>
+          <p className="text-sm">This question already exists in the questionnaire.</p>
+        </div>
+      )}
 
       <div className="flex-grow flex flex-col items-center justify-center pt-24 pb-12 px-6 overflow-y-auto">
         <div className="space-y-12 w-full max-w-4xl">
@@ -1269,7 +793,6 @@ const Questionnaire = () => {
                     {questionOrder.map((originalIndex, displayIndex) => {
                       const text = uniqueQuestions[originalIndex];
                       const { primaryValue } = enhancedDetermineQuestionType(text);
-                      console.log(`Rendering question ${displayIndex}: text="${text}", questionText="${questionTexts[originalIndex]}"`);
                       return (
                         <Draggable
                           key={primaryValue || `question-${originalIndex}`}
@@ -1277,11 +800,7 @@ const Questionnaire = () => {
                           index={displayIndex}
                         >
                           {(provided) => (
-                            <div
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              {...provided.dragHandleProps}
-                            >
+                            <div ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
                               <DivWithDropdown
                                 textValue={text}
                                 index={originalIndex}
@@ -1290,7 +809,7 @@ const Questionnaire = () => {
                                 onQuestionTextChange={handleQuestionTextChange}
                                 onRequiredChange={handleRequiredChange}
                                 initialQuestionText={questionTexts[originalIndex] || "No text selected"}
-                                initialType={selectedTypes[originalIndex] ?? "Text"}
+                                initialType={selectedTypes[originalIndex] || "Text"}
                                 initialRequired={requiredQuestions[originalIndex] || false}
                                 initialTypeChanged={typeChangedStates[originalIndex] || false}
                               />
@@ -1307,24 +826,12 @@ const Questionnaire = () => {
           ) : (
             <div
               className={`text-center py-12 rounded-xl shadow-lg border ${
-                isDarkMode
-                  ? "bg-gray-800/80 backdrop-blur-sm border-gray-700/20"
-                  : "bg-white/80 backdrop-blur-sm border-teal-100/20"
+                isDarkMode ? "bg-gray-800/80 backdrop-blur-sm border-gray-700/20" : "bg-white/80 backdrop-blur-sm border-teal-100/20"
               }`}
             >
-              <p
-                className={`text-lg font-medium ${
-                  isDarkMode ? "text-teal-300" : "text-teal-700"
-                }`}
-              >
-                No text has been selected yet.
-              </p>
-              <p
-                className={`text-sm mt-2 ${
-                  isDarkMode ? "text-teal-400" : "text-teal-500"
-                }`}
-              >
-                Go to the Document tab and select text to generate questions.
+              <p className={`text-lg font-medium ${isDarkMode ? "text-teal-300" : "text-teal-700"}`}>No text has been selected yet.</p>
+              <p className={`text-sm mt-2 ${isDarkMode ? "text-teal-400" : "text-teal-500"}`}>
+                Go to the Document tab and select text in square brackets to generate questions.
               </p>
             </div>
           )}
