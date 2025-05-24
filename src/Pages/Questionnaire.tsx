@@ -49,10 +49,16 @@ const ShepherdStatic = Shepherd as unknown as ShepherdStatic;
 // Define QuestionType to match expected keys
 type QuestionType = "textTypes" | "numberTypes" | "dateTypes" | "radioTypes";
 
+// Define PrimaryType to match possible values returned by determineQuestionType
+type PrimaryType = "Text" | "Paragraph" | "Number" | "Date" | "Radio";
+
 // Type guard to map primaryType to QuestionType
-const getQuestionType = (primaryType: string | undefined): QuestionType => {
-  const lowerType = primaryType?.toLowerCase();
-  switch (lowerType) {
+const getQuestionType = (primaryType: PrimaryType | undefined): QuestionType => {
+  if (!primaryType) {
+    console.warn("primaryType is undefined, defaulting to textTypes");
+    return "textTypes";
+  }
+  switch (primaryType.toLowerCase()) {
     case "text":
     case "paragraph":
       return "textTypes";
@@ -107,12 +113,16 @@ const DivWithDropdown: React.FC<DivWithDropdownProps> = ({
     (text: string) => {
       if (/yes\/no|radio/i.test(text)) {
         return {
-          primaryType: "Radio",
+          primaryType: "Radio" as PrimaryType,
           primaryValue: text,
           validTypes: ["Radio", "Text", "Paragraph"],
         };
       }
-      return determineQuestionType(text);
+      const result = determineQuestionType(text);
+      return {
+        ...result,
+        primaryType: result.primaryType as PrimaryType,
+      };
     },
     [determineQuestionType]
   );
@@ -162,7 +172,7 @@ const DivWithDropdown: React.FC<DivWithDropdownProps> = ({
     const placeholder = findPlaceholderByValue(oldText);
 
     if (placeholder && primaryType) {
-      const typeKey = getQuestionType(primaryType);
+      const typeKey = getQuestionType(primaryType as PrimaryType);
       updateQuestion(typeKey, placeholder, newText);
     } else {
       console.warn(`Skipping updateQuestion: Invalid primaryType "${primaryType}" or placeholder "${placeholder}" for oldText "${oldText}"`);
@@ -371,7 +381,7 @@ const Questionnaire = () => {
       if (text === SMALL_CONDITION_TEXT) {
         console.log(`Hardcoding type for "${text}": Radio, question: ${SMALL_CONDITION_QUESTION}`);
         return {
-          primaryType: "Radio",
+          primaryType: "Radio" as PrimaryType,
           primaryValue: SMALL_CONDITION_QUESTION,
           validTypes: ["Radio"],
           correctType: "Radio",
@@ -380,7 +390,7 @@ const Questionnaire = () => {
       if (text === FOLLOW_UP_TEXT) {
         console.log(`Hardcoding type for "${text}": Text, question: ${FOLLOW_UP_QUESTION}`);
         return {
-          primaryType: "Text",
+          primaryType: "Text" as PrimaryType,
           primaryValue: FOLLOW_UP_QUESTION,
           validTypes: ["Text"],
           correctType: "Text",
@@ -388,7 +398,7 @@ const Questionnaire = () => {
       }
       if (/yes\/no|radio/i.test(text)) {
         return {
-          primaryType: "Radio",
+          primaryType: "Radio" as PrimaryType,
           primaryValue: text,
           validTypes: ["Radio", "Text", "Paragraph"],
           correctType: "Radio",
@@ -398,7 +408,8 @@ const Questionnaire = () => {
       console.log(`Determined type for "${text}": primaryType=${result.primaryType}, primaryValue=${result.primaryValue}`);
       return {
         ...result,
-        correctType: result.primaryType,
+        primaryType: result.primaryType as PrimaryType,
+        correctType: result.primaryType as PrimaryType,
       };
     },
     [determineQuestionType]
@@ -591,7 +602,7 @@ const Questionnaire = () => {
         {
           text: "Next →",
           action: () => {
-            // Handled by handleRequiredToggle
+    // Handled by handleRequiredToggle
           },
         },
       ],
@@ -998,7 +1009,7 @@ const Questionnaire = () => {
     const { primaryType } = determineQuestionType(placeholder);
 
     if (placeholder && primaryType) {
-      const typeKey = getQuestionType(primaryType);
+      const typeKey = getQuestionType(primaryType as PrimaryType);
       updateQuestion(typeKey, placeholder, newText);
     } else {
       console.warn(`Skipping updateQuestion: Invalid primaryType "${primaryType}" or placeholder "${placeholder}" for oldText "${oldText}"`);
