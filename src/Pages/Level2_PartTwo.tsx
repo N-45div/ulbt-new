@@ -11,7 +11,7 @@ import AIAnalysisPanel from "../components/AIAnalysisPanel";
 import { useLocation, useNavigate } from "react-router";
 import { CrispChat } from "../bot/knowledge";
 import { useScore } from "../context/ScoreContext";
-import { parse, HTMLReactParserOptions } from "html-react-parser";
+import parse, { HTMLReactParserOptions } from "html-react-parser";
 import Shepherd from "shepherd.js";
 import "shepherd.js/dist/css/shepherd.css";
 
