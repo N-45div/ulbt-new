@@ -49,6 +49,9 @@ interface ShepherdStatic {
 
 const ShepherdStatic = Shepherd as unknown as ShepherdStatic;
 
+// Define QuestionType to match expected keys
+type QuestionType = "textTypes" | "numberTypes" | "dateTypes" | "radioTypes";
+
 interface DivWithDropdownProps {
   textValue: string;
   index: number;
@@ -143,16 +146,8 @@ const DivWithDropdown: React.FC<DivWithDropdownProps> = ({
     const placeholder = findPlaceholderByValue(oldText);
 
     if (placeholder && primaryType !== "Unknown") {
-      const typeKey = (primaryType.toLowerCase() + "Types") as string;
-
-      if (
-        typeKey === "textTypes" ||
-        typeKey === "numberTypes" ||
-        typeKey === "dateTypes" ||
-        typeKey === "radioTypes"
-      ) {
-        updateQuestion(typeKey as keyof QuestionMaps, placeholder, newText);
-      }
+      const typeKey = `${primaryType.toLowerCase()}Types` as QuestionType;
+      updateQuestion(typeKey, placeholder, newText);
       console.log("Updated question map: ", questionMaps);
     }
 
@@ -336,7 +331,6 @@ const Questionnaire = () => {
   } = useQuestionType();
   const [uniqueQuestions, setUniqueQuestions] = useState<string[]>([]);
   const [questionOrder, setQuestionOrder] = useState<number[]>([]);
-  const [duplicateDetected, setDuplicateDetected] = useState<boolean>(false);
   const [questionTexts, setQuestionTexts] = useState<string[]>([]);
   const [scoredQuestions, setScoredQuestions] = useState<
     Record<number, { typeScored: boolean; requiredScored: boolean }>
@@ -998,16 +992,8 @@ const Questionnaire = () => {
     const { primaryType } = determineQuestionType(placeholder);
 
     if (placeholder) {
-      const typeKey = (primaryType.toLowerCase() + "Types") as string;
-
-      if (
-        typeKey === "textTypes" ||
-        typeKey === "numberTypes" ||
-        typeKey === "dateTypes" ||
-        typeKey === "radioTypes"
-      ) {
-        updateQuestion(typeKey as keyof QuestionMaps, placeholder, newText);
-      }
+      const typeKey = `${primaryType.toLowerCase()}Types` as QuestionType;
+      updateQuestion(typeKey, placeholder, newText);
     }
     console.log(`Question text changed for index ${index} to: ${newText}`);
   };
@@ -1096,10 +1082,6 @@ const Questionnaire = () => {
     navigate("/Live_Generation");
     console.log("Navigating to Live Generation tab");
   };
-
-  const selectedPart = localStorage.getItem("selectedPart");
-  const levelPath =
-    selectedPart === "4" ? "/Level-Two-Part-Two-Demo" : "/Level-Two-Part-Two";
 
   return (
     <div
@@ -1247,21 +1229,6 @@ const Questionnaire = () => {
           </div>
         </div>
       </div>
-
-      {duplicateDetected && (
-        <div
-          className={`absolute top-28 right-6 p-4 rounded-xl shadow-md transition-opacity duration-400 z-10 animate-fadeIn ${
-            isDarkMode
-              ? "bg-gradient-to-r from-yellow-800 to-yellow-900 border-l-4 border-yellow-500 text-yellow-200"
-              : "bg-gradient-to-r from-yellow-100 to-yellow-200 border-l-4 border-yellow-400 text-yellow-800"
-          }`}
-        >
-          <p className="font-bold">Duplicate Question</p>
-          <p className="text-sm">
-            This question already exists in the questionnaire.
-          </p>
-        </div>
-      )}
 
       <div className="flex-grow flex flex-col items-center justify-center pt-24 pb-12 px-6 overflow-y-auto">
         <div className="space-y-12 w-full max-w-4xl">
