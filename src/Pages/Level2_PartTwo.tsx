@@ -4,14 +4,14 @@ import { useState, useContext, useRef, useEffect } from "react";
 import Navbar from "../components/Navbar";
 import { useHighlightedText } from "../context/HighlightedTextContext";
 import { useQuestionType } from "../context/QuestionTypeContext";
-import EmploymentAgreement, { documentText } from "../utils/EmploymentAgreement";
+import { documentText } from "../utils/EmploymentAgreement";
 import { determineQuestionType } from "../utils/questionTypeUtils";
 import { ThemeContext } from "../context/ThemeContext";
 import AIAnalysisPanel from "../components/AIAnalysisPanel";
 import { useLocation, useNavigate } from "react-router";
 import { CrispChat } from "../bot/knowledge";
 import { useScore } from "../context/ScoreContext";
-import parse, { domToReact, HTMLReactParserOptions } from "html-react-parser";
+import { parse, HTMLReactParserOptions } from "html-react-parser";
 import Shepherd from "shepherd.js";
 import "shepherd.js/dist/css/shepherd.css";
 
@@ -69,7 +69,6 @@ const LevelTwoPart_Two = () => {
 
   // Scoring system
   const { totalScore, levelTwoScore, setLevelTwoScore } = useScore();
-  const [score, setScore] = useState<number>(levelTwoScore);
   const [scoreChange, setScoreChange] = useState<number | null>(null);
   const [foundPlaceholders, setFoundPlaceholders] = useState<string[]>([]);
   const [foundSmallConditions, setFoundSmallConditions] = useState<string[]>([]);
@@ -77,8 +76,7 @@ const LevelTwoPart_Two = () => {
 
   // Sync local score with levelTwoScore
   useEffect(() => {
-    console.log(`levelTwoScore updated to ${levelTwoScore}, syncing local score`);
-    setScore(levelTwoScore);
+    console.log(`levelTwoScore updated to ${levelTwoScore}`);
   }, [levelTwoScore]);
 
   useEffect(() => {
@@ -211,12 +209,9 @@ const LevelTwoPart_Two = () => {
         label === "Edit PlaceHolder" &&
         !foundPlaceholders.includes(textWithoutBrackets)
       ) {
-        setScore((prevScore) => {
-          const newScore = prevScore + 3;
-          console.log(`Edit PlaceHolder: Setting score to ${newScore}`);
-          setLevelTwoScore(newScore);
-          return newScore;
-        });
+        const newScore = levelTwoScore + 3;
+        console.log(`Edit PlaceHolder: Setting score to ${newScore}`);
+        setLevelTwoScore(newScore);
         setScoreChange(3);
         setTimeout(() => {
           console.log("Resetting scoreChange");
@@ -227,12 +222,9 @@ const LevelTwoPart_Two = () => {
         label === "Small Condition" &&
         !foundSmallConditions.includes(textWithoutBrackets)
       ) {
-        setScore((prevScore) => {
-          const newScore = prevScore + 3;
-          console.log(`Small Condition: Setting score to ${newScore}`);
-          setLevelTwoScore(newScore);
-          return newScore;
-        });
+        const newScore = levelTwoScore + 3;
+        console.log(`Small Condition: Setting score to ${newScore}`);
+        setLevelTwoScore(newScore);
         setScoreChange(3);
         setTimeout(() => {
           console.log("Resetting scoreChange");
@@ -243,12 +235,9 @@ const LevelTwoPart_Two = () => {
         label === "Big Condition" &&
         !foundBigConditions.includes(textWithoutBrackets)
       ) {
-        setScore((prevScore) => {
-          const newScore = prevScore + 3;
-          console.log(`Big Condition: Setting score to ${newScore}`);
-          setLevelTwoScore(newScore);
-          return newScore;
-        });
+        const newScore = levelTwoScore + 3;
+        console.log(`Big Condition: Setting score to ${newScore}`);
+        setLevelTwoScore(newScore);
         setScoreChange(3);
         setTimeout(() => {
           console.log("Resetting scoreChange");
@@ -260,12 +249,9 @@ const LevelTwoPart_Two = () => {
       }
     } else {
       console.log(`Incorrect button for ${label}: Deducting 2 points`);
-      setScore((prevScore) => {
-        const newScore = Math.max(0, prevScore - 2);
-        console.log(`Incorrect selection: Setting score to ${newScore}`);
-        setLevelTwoScore(newScore);
-        return newScore;
-      });
+      const newScore = Math.max(0, levelTwoScore - 2);
+      console.log(`Incorrect selection: Setting score to ${newScore}`);
+      setLevelTwoScore(newScore);
       setScoreChange(-2);
       setTimeout(() => {
         console.log("Resetting scoreChange");
