@@ -55,20 +55,21 @@ const mapPrimaryTypeToQuestionType = (primaryType: string | undefined): Question
     console.warn("primaryType is undefined, defaulting to textTypes");
     return "textTypes";
   }
-  switch (primaryType.toLowerCase()) {
-    case "text":
-    case "paragraph":
-      return "textTypes";
-    case "number":
-      return "numberTypes";
-    case "date":
-      return "dateTypes";
-    case "radio":
-      return "radioTypes";
-    default:
-      console.warn(`Unknown primaryType "${primaryType}", defaulting to textTypes`);
-      return "textTypes"; // Fallback to textTypes for unknown types
+  const lowerType = primaryType.toLowerCase();
+  const validTypes: QuestionType[] = ["textTypes", "numberTypes", "dateTypes", "radioTypes"];
+  const typeMap: Record<string, QuestionType> = {
+    text: "textTypes",
+    paragraph: "textTypes",
+    number: "numberTypes",
+    date: "dateTypes",
+    radio: "radioTypes",
+  };
+  const mappedType = typeMap[lowerType] || "textTypes";
+  if (!validTypes.includes(mappedType)) {
+    console.warn(`Unknown primaryType "${primaryType}", defaulting to textTypes`);
+    return "textTypes";
   }
+  return mappedType;
 };
 
 interface DivWithDropdownProps {
@@ -164,7 +165,9 @@ const DivWithDropdown: React.FC<DivWithDropdownProps> = ({
     const { primaryType } = determineQuestionType(oldText);
     const placeholder = findPlaceholderByValue(oldText);
 
-    if (placeholder && primaryType && primaryType !== "Unknown") {
+    // Ensure primaryType is valid before mapping
+    const validPrimaryTypes = ["Text", "Paragraph", "Number", "Date", "Radio"];
+    if (placeholder && primaryType && validPrimaryTypes.includes(primaryType)) {
       const typeKey = mapPrimaryTypeToQuestionType(primaryType);
       updateQuestion(typeKey, placeholder, newText);
     } else {
@@ -1000,7 +1003,9 @@ const Questionnaire = () => {
     const placeholder = findPlaceholderByValue(oldText) || "undefined";
     const { primaryType } = determineQuestionType(placeholder);
 
-    if (placeholder && primaryType && primaryType !== "Unknown") {
+    // Ensure primaryType is valid before mapping
+    const validPrimaryTypes = ["Text", "Paragraph", "Number", "Date", "Radio"];
+    if (placeholder && primaryType && validPrimaryTypes.includes(primaryType)) {
       const typeKey = mapPrimaryTypeToQuestionType(primaryType);
       updateQuestion(typeKey, placeholder, newText);
     } else {
