@@ -49,8 +49,12 @@ const ShepherdStatic = Shepherd as unknown as ShepherdStatic;
 // Define QuestionType to match expected keys
 type QuestionType = "textTypes" | "numberTypes" | "dateTypes" | "radioTypes";
 
-// Map primaryType to QuestionType with fallback
-const mapPrimaryTypeToQuestionType = (primaryType: string): QuestionType => {
+// Map primaryType to QuestionType with strict validation
+const mapPrimaryTypeToQuestionType = (primaryType: string | undefined): QuestionType => {
+  if (!primaryType) {
+    console.warn("primaryType is undefined, defaulting to textTypes");
+    return "textTypes";
+  }
   switch (primaryType.toLowerCase()) {
     case "text":
     case "paragraph":
@@ -163,6 +167,8 @@ const DivWithDropdown: React.FC<DivWithDropdownProps> = ({
     if (placeholder && primaryType && primaryType !== "Unknown") {
       const typeKey = mapPrimaryTypeToQuestionType(primaryType);
       updateQuestion(typeKey, placeholder, newText);
+    } else {
+      console.warn(`Skipping updateQuestion: Invalid primaryType "${primaryType}" or placeholder "${placeholder}" for oldText "${oldText}"`);
     }
 
     // Trigger tour advancement for specific placeholders
@@ -997,6 +1003,8 @@ const Questionnaire = () => {
     if (placeholder && primaryType && primaryType !== "Unknown") {
       const typeKey = mapPrimaryTypeToQuestionType(primaryType);
       updateQuestion(typeKey, placeholder, newText);
+    } else {
+      console.warn(`Skipping updateQuestion: Invalid primaryType "${primaryType}" or placeholder "${placeholder}" for oldText "${oldText}"`);
     }
     console.log(`Question text changed for index ${index} to: ${newText}`);
   };
