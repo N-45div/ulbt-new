@@ -51,7 +51,12 @@ type QuestionType = "textTypes" | "numberTypes" | "dateTypes" | "radioTypes";
 
 // Type guard to map primaryType to QuestionType
 const getQuestionType = (primaryType: string | undefined): QuestionType => {
-  const lowerType = primaryType?.toLowerCase();
+  if (!primaryType) {
+    console.warn(`primaryType is undefined, defaulting to textTypes`);
+    return "textTypes";
+  }
+  
+  const lowerType = primaryType.toLowerCase();
   switch (lowerType) {
     case "text":
     case "paragraph":
@@ -158,14 +163,15 @@ const DivWithDropdown: React.FC<DivWithDropdownProps> = ({
     const newText = e.target.value;
     setQuestionText(newText);
     onQuestionTextChange(index, newText);
-    const { primaryType } = determineQuestionType(oldText);
+    
+    const { primaryType: determinedPrimaryType } = determineQuestionType(oldText);
     const placeholder = findPlaceholderByValue(oldText);
 
-    if (placeholder && primaryType) {
-      const typeKey = getQuestionType(primaryType);
+    if (placeholder && determinedPrimaryType) {
+      const typeKey: QuestionType = getQuestionType(determinedPrimaryType);
       updateQuestion(typeKey, placeholder, newText);
     } else {
-      console.warn(`Skipping updateQuestion: Invalid primaryType "${primaryType}" or placeholder "${placeholder}" for oldText "${oldText}"`);
+      console.warn(`Skipping updateQuestion: Invalid primaryType "${determinedPrimaryType}" or placeholder "${placeholder}" for oldText "${oldText}"`);
     }
 
     // Trigger tour advancement for specific placeholders
@@ -635,7 +641,7 @@ const Questionnaire = () => {
       id: "set-required-employee-name",
       text: "Mark the <strong>Employee Name</strong> question as <strong>Required</strong> by toggling the switch.",
       attachTo: {
-        element: document.querySelector(`[data-testid="required-toggle values-1"]`) ?? document.body,
+        element: document.querySelector(`[data-testid="required-toggle-1"]`) ?? document.body,
         on: "bottom",
       },
       buttons: [
@@ -744,177 +750,37 @@ const Questionnaire = () => {
     console.log("Unique highlightedTexts:", uniqueHighlightedTexts);
 
     if (
-      JSON.stringify(uniqueHighlightedTexts) ===
+      JSON.stringify(uniqueHighlightedTexts) !==
       JSON.stringify(prevHighlightedTextsRef.current)
     ) {
-      console.log("No change in highlightedTexts, skipping state updates");
-      return;
+      console.log("highlightedTexts changed, updating uniqueQuestions");
+      setUniqueQuestions(uniqueHighlightedTexts);
+      setQuestionOrder(uniqueHighlightedTexts.map((_, index) => index));
+      setQuestionTexts(uniqueHighlightedTexts.map((text) => text));
+      setSelectedTypes(
+        uniqueHighlightedTexts.map((text) => {
+          const { primaryType } = enhancedDetermineQuestionType(text);
+          return primaryType || "Text";
+        })
+      );
+      setEditedQuestions(
+        uniqueHighlightedTexts.map((text) => {
+          const { primaryValue } = enhancedDetermineQuestionType(text);
+          return primaryValue || text;
+        })
+      );
+      setRequiredQuestions(new Array(uniqueHighlightedTexts.length).fill(false));
+      setTypeChangedStates(new Array(uniqueHighlightedTexts.length).fill(false));
+      setScoredQuestions({});
+      setBonusAwarded(false);
+      prevHighlightedTextsRef.current = uniqueHighlightedTexts;
     }
-
-    prevHighlightedTextsRef.current = uniqueHighlightedTexts;
-
-    let savedState: Record<string, {
-      type: string;
-      typeChanged: boolean;
-      questionText: string;
-      required: boolean;
-      scored: { typeScored: boolean; requiredScored: boolean };
-      order: number;
-    }> = {};
-
-    const savedStateData = sessionStorage.getItem("questionnaireState");
-    if (savedStateData) {
-      try {
-        savedState = JSON.parse(savedStateData);
-        console.log("Loaded saved state from sessionStorage:", savedState);
-      } catch (error) {
-        console.error("Error parsing sessionStorage data:", error);
-      }
-    }
-
-    const processedTexts: string[] = [];
-    const hasSmallCondition = uniqueHighlightedTexts.includes(SMALL_CONDITION_TEXT);
-    const hasFollowUp = uniqueHighlightedTexts.includes(FOLLOW_UP_TEXT);
-
-    if (hasSmallCondition) {
-      processedTexts.push(SMALL_CONDITION_TEXT);
-      console.log("Small condition detected, added to processedTexts");
-      if (hasFollowUp) {
-        processedTexts.push(FOLLOW_UP_TEXT);
-        console.log("Follow-up detected, added to processedTexts");
-      }
-    }
-
-    uniqueHighlightedTexts.forEach((text) => {
-      if (text !== SMALL_CONDITION_TEXT && text !== FOLLOW_UP_TEXT && !processedTexts.includes(text)) {
-        processedTexts.push(text);
-        console.log(`Added non-duplicate text to processedTexts: "${text}"`);
-      }
-    });
-
-    console.log("Processed texts:", processedTexts);
-
-    if (
-      processedTexts.length === uniqueQuestions.length &&
-      processedTexts.every((text, i) => text === uniqueQuestions[i])
-    ) {
-      console.log("No changes in processed texts, skipping state updates");
-      return;
-    }
-
-    const newUniqueQuestions = processedTexts;
-    const newQuestionTexts: string[] = [];
-    const newSelectedTypes: string[] = [];
-    const newTypeChangedStates: boolean[] = [];
-    const newRequiredQuestions: boolean[] = [];
-    const newScoredQuestions: Record<
-      number,
-      { typeScored: boolean; requiredScored: boolean }
-    > = {};
-    const newQuestionOrder: number[] = [];
-    const newState: Record<string, {
-      type: string;
-      typeChanged: boolean;
-      questionText: string;
-      required: boolean;
-      scored: { typeScored: boolean; requiredScored: boolean };
-      order: number;
-    }> = {};
-
-    processedTexts.forEach((text, i) => {
-      const { primaryValue, primaryType } = enhancedDetermineQuestionType(text);
-      const saved = savedState[text];
-      const existingIndex = uniqueQuestions.indexOf(text);
-      const existing = existingIndex !== -1;
-
-      console.log(`Processing text "${text}": primaryValue=${primaryValue}, primaryType=${primaryType}`);
-
-      if (saved) {
-        newQuestionTexts.push(saved.questionText);
-        newSelectedTypes.push(saved.type);
-        newTypeChangedStates.push(saved.typeChanged);
-        newRequiredQuestions.push(saved.required);
-        newScoredQuestions[i] = saved.scored;
-        newQuestionOrder.push(saved.order);
-        newState[text] = { ...saved };
-        console.log(
-          `Restored saved state for "${text}": type=${saved.type}, questionText=${saved.questionText}`
-        );
-      } else if (existing) {
-        const existingType = selectedTypes[existingIndex] ?? "Text";
-        newQuestionTexts.push(questionTexts[existingIndex]);
-        newSelectedTypes.push(existingType);
-        newTypeChangedStates.push(typeChangedStates[existingIndex]);
-        newRequiredQuestions.push(requiredQuestions[existingIndex]);
-        newScoredQuestions[i] = scoredQuestions[existingIndex] || {
-          typeScored: false,
-          requiredScored: false,
-        };
-        newQuestionOrder.push(questionOrder[existingIndex] !== undefined ? questionOrder[existingIndex] : i);
-        newState[text] = {
-          type: existingType,
-          typeChanged: typeChangedStates[existingIndex],
-          questionText: questionTexts[existingIndex],
-          required: requiredQuestions[existingIndex],
-          scored: scoredQuestions[existingIndex] || {
-            typeScored: false,
-            requiredScored: false,
-          },
-          order: questionOrder[existingIndex] !== undefined ? questionOrder[existingIndex] : i,
-        };
-        console.log(
-          `Preserved existing state for "${text}": type=${existingType}, questionText=${questionTexts[existingIndex]}`
-        );
-      } else {
-        newQuestionTexts.push(primaryValue || "No text selected");
-        newSelectedTypes.push(primaryType || "Text");
-        newTypeChangedStates.push(false);
-        newRequiredQuestions.push(false);
-        newScoredQuestions[i] = { typeScored: false, requiredScored: false };
-        newQuestionOrder.push(i);
-        newState[text] = {
-          type: primaryType || "Text",
-          typeChanged: false,
-          questionText: primaryValue || "No text selected",
-          required: false,
-          scored: { typeScored: false, requiredScored: false },
-          order: i,
-        };
-        console.log(
-          `Initialized new question "${text}": type=${primaryType || "Text"}, questionText=${primaryValue || "No text selected"}`
-        );
-      }
-    });
-
-    setUniqueQuestions(newUniqueQuestions);
-    setQuestionTexts(newQuestionTexts);
-    setSelectedTypes(newSelectedTypes);
-    setTypeChangedStates(newTypeChangedStates);
-    setRequiredQuestions(newRequiredQuestions);
-    setScoredQuestions(newScoredQuestions);
-    setQuestionOrder(newQuestionOrder);
-    setEditedQuestions(newQuestionTexts);
-    setBonusAwarded(false);
-
-    console.log("Final uniqueQuestions:", newUniqueQuestions);
-    console.log("Final questionTexts:", newQuestionTexts);
-    console.log("Final selectedTypes:", newSelectedTypes);
-
-    sessionStorage.setItem("questionnaireState", JSON.stringify(newState));
   }, [
     highlightedTexts,
     enhancedDetermineQuestionType,
-    determineQuestionType,
     setSelectedTypes,
     setEditedQuestions,
     setRequiredQuestions,
-    uniqueQuestions,
-    selectedTypes,
-    typeChangedStates,
-    questionTexts,
-    requiredQuestions,
-    scoredQuestions,
-    questionOrder,
   ]);
 
   useEffect(() => {
@@ -922,360 +788,157 @@ const Questionnaire = () => {
   }, [checkForBonus]);
 
   const handleTypeChange = (index: number, type: string) => {
-    const newTypes = [...selectedTypes];
-    newTypes[index] = type;
-    setSelectedTypes(newTypes);
-
-    sessionStorage.setItem("selectedQuestionTypes", JSON.stringify(newTypes));
-
-    const newState = {
-      ...JSON.parse(sessionStorage.getItem("questionnaireState") || "{}"),
-      [uniqueQuestions[index]]: {
-        ...JSON.parse(sessionStorage.getItem("questionnaireState") || "{}")[uniqueQuestions[index]],
-        type,
-        typeChanged: true,
-      },
-    };
-    sessionStorage.setItem("questionnaireState", JSON.stringify(newState));
-    scoreTypeSelection(index, type);
-
+    setSelectedTypes((prev) => {
+      const newTypes = [...prev];
+      newTypes[index] = type;
+      return newTypes;
+    });
+    
     const textValue = uniqueQuestions[index];
-    const { primaryValue } = enhancedDetermineQuestionType(textValue);
-    const newTexts = [...questionTexts];
+    const { primaryType: determinedPrimaryType } = determineQuestionType(textValue);
+    const placeholder = findPlaceholderByValue(textValue);
 
-    if (
-      newTexts[index] === primaryValue ||
-      newTexts[index] === "No text selected"
-    ) {
-      newTexts[index] = primaryValue || "No text selected";
-      setQuestionTexts(newTexts);
-      setEditedQuestions(newTexts);
-      newState[uniqueQuestions[index]] = {
-        ...newState[uniqueQuestions[index]],
-        questionText: newTexts[index],
-      };
-      sessionStorage.setItem("questionnaireState", JSON.stringify(newState));
+    if (placeholder && determinedPrimaryType) {
+      const typeKey: QuestionType = getQuestionType(determinedPrimaryType);
+      updateQuestion(typeKey, placeholder, questionTexts[index]);
     }
-    console.log(`Type changed for index ${index} to: ${type}`);
+
+    scoreTypeSelection(index, type);
   };
 
   const handleTypeChanged = (index: number, changed: boolean) => {
-    const newTypeChangedStates = [...typeChangedStates];
-    newTypeChangedStates[index] = changed;
-    setTypeChangedStates(newTypeChangedStates);
-
-    const newState = {
-      ...JSON.parse(sessionStorage.getItem("questionnaireState") || "{}"),
-      [uniqueQuestions[index]]: {
-        ...JSON.parse(sessionStorage.getItem("questionnaireState") || "{}")[uniqueQuestions[index]],
-        typeChanged: changed,
-      },
-    };
-    sessionStorage.setItem("questionnaireState", JSON.stringify(newState));
-    console.log(
-      `Updated typeChangedStates after change at index ${index}:`,
-      newTypeChangedStates
-    );
+    setTypeChangedStates((prev) => {
+      const newStates = [...prev];
+      newStates[index] = changed;
+      return newStates;
+    });
   };
 
   const handleQuestionTextChange = (index: number, newText: string) => {
-    const oldText = questionTexts[index];
-    const newTexts = [...questionTexts];
-    newTexts[index] = newText;
-    setQuestionTexts(newTexts);
-    setEditedQuestions(newTexts);
-
-    const newState = {
-      ...JSON.parse(sessionStorage.getItem("questionnaireState") || "{}"),
-      [uniqueQuestions[index]]: {
-        ...JSON.parse(sessionStorage.getItem("questionnaireState") || "{}")[uniqueQuestions[index]],
-        questionText: newText,
-      },
-    };
-    sessionStorage.setItem("questionnaireState", JSON.stringify(newState));
-
-    const placeholder = findPlaceholderByValue(oldText) || "undefined";
-    const { primaryType } = determineQuestionType(placeholder);
-
-    if (placeholder && primaryType) {
-      const typeKey = getQuestionType(primaryType);
-      updateQuestion(typeKey, placeholder, newText);
-    } else {
-      console.warn(`Skipping updateQuestion: Invalid primaryType "${primaryType}" or placeholder "${placeholder}" for oldText "${oldText}"`);
-    }
-    console.log(`Question text changed for index ${index} to: ${newText}`);
+    setQuestionTexts((prev) => {
+      const newTexts = [...prev];
+      newTexts[index] = newText;
+      return newTexts;
+    });
+    setEditedQuestions((prev) => {
+      const newQuestions = [...prev];
+      newQuestions[index] = newText;
+      return newQuestions;
+    });
   };
 
   const handleRequiredChange = (index: number, required: boolean) => {
-    const newRequired = [...requiredQuestions];
-    newRequired[index] = required;
-    setRequiredQuestions(newRequired);
-
-    const newState = {
-      ...JSON.parse(sessionStorage.getItem("questionnaireState") || "{}"),
-      [uniqueQuestions[index]]: {
-        ...JSON.parse(sessionStorage.getItem("questionnaireState") || "{}")[uniqueQuestions[index]],
-        required,
-      },
-    };
-    sessionStorage.setItem("questionnaireState", JSON.stringify(newState));
-
+    setRequiredQuestions((prev) => {
+      const newRequired = [...prev];
+      newRequired[index] = required;
+      return newRequired;
+    });
     scoreRequiredStatus(index, required);
   };
 
   const onDragEnd = (result: any) => {
     if (!result.destination) return;
 
-    const newOrder = [...questionOrder];
-    const [reorderedItem] = newOrder.splice(result.source.index, 1);
-    newOrder.splice(result.destination.index, 0, reorderedItem);
+    const items = Array.from(questionOrder);
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
 
-    setQuestionOrder(newOrder);
-
-    const newUniqueQuestions = newOrder.map((index) => uniqueQuestions[index]);
-    const newQuestionTexts = newOrder.map((index) => questionTexts[index]);
-    const newSelectedTypes = newOrder.map((index) => selectedTypes[index] ?? "Text");
-    const newRequiredQuestions = newOrder.map(
-      (index) => requiredQuestions[index]
-    );
-    const newTypeChangedStates = newOrder.map(
-      (index) => typeChangedStates[index]
-    );
-    const newScoredQuestions = Object.fromEntries(
-      newOrder.map((originalIndex, newIndex) => [
-        newIndex,
-        scoredQuestions[originalIndex] || {
-          typeScored: false,
-          requiredScored: false,
-        },
-      ])
-    );
-
-    setUniqueQuestions(newUniqueQuestions);
-    setQuestionTexts(newQuestionTexts);
-    setSelectedTypes(newSelectedTypes);
-    setRequiredQuestions(newRequiredQuestions);
-    setTypeChangedStates(newTypeChangedStates);
-    setScoredQuestions(newScoredQuestions);
-
-    const newState: Record<string, {
-      type: string;
-      typeChanged: boolean;
-      questionText: string;
-      required: boolean;
-      scored: { typeScored: boolean; requiredScored: boolean };
-      order: number;
-    }> = {};
-    newUniqueQuestions.forEach((text, i) => {
-      newState[text] = {
-        type: newSelectedTypes[i],
-        typeChanged: newTypeChangedStates[i],
-        questionText: newQuestionTexts[i],
-        required: newRequiredQuestions[i],
-        scored: newScoredQuestions[i],
-        order: newOrder[i],
-      };
-    });
-    sessionStorage.setItem("questionnaireState", JSON.stringify(newState));
-
-    console.log("Questions reordered. New order:", newOrder);
+    setQuestionOrder(items);
   };
 
-  const handleNextClick = () => {
-    sessionStorage.setItem("questionOrder_2", JSON.stringify(questionOrder));
-    sessionStorage.setItem("selectedQuestionTypes", JSON.stringify(selectedTypes));
-    navigate("/Live_Generation");
-    console.log("Navigating to Live Generation tab");
+  const handleNext = () => {
+    navigate("/live-generation");
+  };
+
+  const handlePrevious = () => {
+    navigate("/highlight-text");
   };
 
   return (
     <div
-      className={`min-h-screen flex flex-col font-sans relative transition-all duration-500 ${
+      className={`min-h-screen transition-colors duration-300 ${
         isDarkMode
-          ? "bg-gradient-to-br from-gray-800 via-gray-900 to-black"
-          : "bg-gradient-to-br from-indigo-50 via-teal-50 to-pink-50"
+          ? "bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900"
+          : "bg-gradient-to-br from-cyan-50 via-teal-50 to-blue-50"
       }`}
     >
-      <Navbar
-        level={localStorage.getItem("selectedPart") === "4" ? "/Level-Two-Part-Two-Demo" : "/Level-Two-Part-Two"}
-        questionnaire="/Questionnaire"
-        live_generation="/Live_Generation"
-      />
-      <div className="fixed bottom-6 left-14 transform -translate-x-1/2 z-50 flex gap-4">
-        <button
-          onClick={() => navigate(-1)}
-          className={`px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-300 ${
-            isDarkMode
-              ? "bg-gray-700 text-teal-200 hover:bg-gray-600"
-              : "bg-teal-200 text-teal-900 hover:bg-cyan-200"
-          }`}
-        >
-          Back
-        </button>
-        <button
-          onClick={() => {
-            sessionStorage.clear();
-            setUniqueQuestions([]);
-            setSelectedTypes([]);
-            setTypeChangedStates([]);
-            setQuestionTexts([]);
-            setRequiredQuestions([]);
-            setQuestionOrder([]);
-            setScoredQuestions({});
-            setBonusAwarded(false);
-            prevHighlightedTextsRef.current = [];
-            console.log("Full reset: sessionStorage cleared, all states reset");
-          }}
-          className={`px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-300 ${
-            isDarkMode
-              ? "bg-red-700 text-teal-200 hover:bg-red-600"
-              : "bg-red-200 text-teal-900 hover:bg-red-300"
-          }`}
-        >
-          Reset
-        </button>
-        <button
-          data-testid="next-button"
-          onClick={handleNextClick}
-          className={`px-4 py-2 rounded-lg font-medium shadow-md transition-all duration-300 ${
-            isDarkMode
-              ? "bg-teal-700 text-teal-200 hover:bg-teal-600"
-              : "bg-teal-600 text-white hover:bg-teal-500"
-          }`}
-        >
-          Next
-        </button>
-      </div>
-
-      <div className="fixed top-16 left-6 z-50 px-6 py-3">
-        <div
-          className={`p-3 rounded-full shadow-lg flex items-center ${
-            isDarkMode ? "bg-gray-700 text-white" : "bg-teal-500 text-white"
-          }`}
-        >
-          <span className="font-bold mr-2">Score:</span> {totalScore}
+      <Navbar />
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <div className="text-center mb-12">
+          <h1
+            className={`text-4xl font-bold mb-4 ${
+              isDarkMode ? "text-teal-200" : "text-teal-800"
+            }`}
+          >
+            Create Your Questionnaire
+          </h1>
+          <p
+            className={`text-lg ${
+              isDarkMode ? "text-teal-300" : "text-teal-600"
+            }`}
+          >
+            Transform your highlighted text into interactive questions
+          </p>
           {scoreChange !== null && (
-            <span
-              className={`ml-2 text-sm font-bold ${
-                scoreChange > 0 ? "text-green-400" : "text-red-400"
-              }`}
+            <div
+              className={`inline-block px-4 py-2 rounded-full text-white font-semibold text-lg ${
+                scoreChange > 0 ? "bg-green-500" : "bg-red-500"
+              } animate-pulse`}
             >
-              {scoreChange > 0 ? `+${scoreChange}` : scoreChange}
-            </span>
+              {scoreChange > 0 ? "+" : ""}{scoreChange} points
+            </div>
           )}
         </div>
-      </div>
 
-      <div
-        className={`absolute top-16 right-6 w-80 h-12 rounded-xl shadow-lg flex items-center justify-center text-sm font-semibold z-20 ${
-          isDarkMode
-            ? "bg-gradient-to-r from-gray-700 to-gray-800 text-teal-200"
-            : "bg-gradient-to-r from-teal-200 to-cyan-200 text-teal-900"
-        }`}
-      >
-        <div className="flex items-center space-x-6">
+        {/* Score Display */}
+        <div className="text-center mb-8">
           <div
-            className={`flex items-center space-x-2 ${
-              leftActive
-                ? isDarkMode
-                  ? "text-teal-400"
-                  : "text-teal-600"
-                : isDarkMode
-                ? "text-cyan-400"
-                : "text-cyan-500"
-            } transition-all duration-300`}
+            className={`inline-block px-6 py-3 rounded-xl font-bold text-xl ${
+              isDarkMode
+                ? "bg-gray-700 text-teal-200 border-2 border-teal-400"
+                : "bg-white text-teal-800 border-2 border-teal-300 shadow-lg"
+            }`}
           >
-            <span>Employer</span>
-          </div>
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={() => {
-                setLeftActive(true);
-                setRightActive(false);
-              }}
-              className={`${
-                isDarkMode
-                  ? "text-teal-400 hover:text-cyan-400"
-                  : "text-teal-600 hover:text-cyan-500"
-              } transform hover:scale-110 transition-all duration-300`}
-            >
-              <FaChevronLeft className="text-xl" />
-            </button>
-            <button
-              onClick={() => {
-                setRightActive(true);
-                setLeftActive(false);
-              }}
-              className={`${
-                isDarkMode
-                  ? "text-teal-400 hover:text-cyan-400"
-                  : "text-teal-600 hover:text-cyan-500"
-              } transform hover:scale-110 transition-all duration-300`}
-            >
-              <FaChevronRight className="text-xl" />
-            </button>
-          </div>
-          <div
-            className={`flex items-center space-x-2 ${
-              rightActive
-                ? isDarkMode
-                  ? "text-teal-400"
-                  : "text-teal-600"
-                : isDarkMode
-                ? "text-cyan-400"
-                : "text-cyan-500"
-            } transition-all duration-300`}
-          >
-            <span>Employee</span>
+            Total Score: {totalScore}
           </div>
         </div>
-      </div>
 
-      <div className="flex-grow flex flex-col items-center justify-center pt-24 pb-12 px-6 overflow-y-auto">
-        <div className="space-y-12 w-full max-w-4xl">
+        {/* Questions List */}
+        <div className="max-w-4xl mx-auto mb-12">
           {uniqueQuestions.length > 0 ? (
             <DragDropContext onDragEnd={onDragEnd}>
               <Droppable droppableId="questions">
                 {(provided) => (
                   <div {...provided.droppableProps} ref={provided.innerRef}>
-                    {questionOrder.map((originalIndex, displayIndex) => {
-                      const text = uniqueQuestions[originalIndex];
-                      const { primaryValue } = enhancedDetermineQuestionType(text);
-                      console.log(`Rendering question ${displayIndex}: text="${text}", questionText="${questionTexts[originalIndex]}"`);
+                    {questionOrder.map((questionIndex, index) => {
+                      const question = uniqueQuestions[questionIndex];
+                      const isFollowUp = question === FOLLOW_UP_TEXT;
                       return (
                         <Draggable
-                          key={primaryValue || `question-${originalIndex}`}
-                          draggableId={
-                            primaryValue || `question-${originalIndex}`
-                          }
-                          index={displayIndex}
+                          key={`question-${questionIndex}`}
+                          draggableId={`question-${questionIndex}`}
+                          index={index}
                         >
                           {(provided) => (
                             <div
                               ref={provided.innerRef}
                               {...provided.draggableProps}
                               {...provided.dragHandleProps}
+                              className="mb-8"
                             >
                               <DivWithDropdown
-                                textValue={text}
-                                index={originalIndex}
+                                textValue={question}
+                                index={questionIndex}
                                 onTypeChange={handleTypeChange}
                                 onTypeChanged={handleTypeChanged}
                                 onQuestionTextChange={handleQuestionTextChange}
                                 onRequiredChange={handleRequiredChange}
-                                initialQuestionText={
-                                  questionTexts[originalIndex] ||
-                                  "No text selected"
-                                }
-                                initialType={
-                                  selectedTypes[originalIndex] ?? "Text"
-                                }
-                                initialRequired={
-                                  requiredQuestions[originalIndex] || false
-                                }
-                                initialTypeChanged={
-                                  typeChangedStates[originalIndex] || false
-                                }
+                                initialQuestionText={questionTexts[questionIndex]}
+                                initialType={selectedTypes[questionIndex]}
+                                initialRequired={requiredQuestions[questionIndex]}
+                                initialTypeChanged={typeChangedStates[questionIndex]}
+                                isFollowUp={isFollowUp}
                               />
                             </div>
                           )}
@@ -1289,28 +952,45 @@ const Questionnaire = () => {
             </DragDropContext>
           ) : (
             <div
-              className={`text-center py-12 rounded-xl shadow-lg border ${
+              className={`text-center py-12 rounded-xl ${
                 isDarkMode
-                  ? "bg-gray-800/80 backdrop-blur-sm border-gray-700/20"
-                  : "bg-white/80 backdrop-blur-sm border-teal-100/20"
+                  ? "bg-gray-700 text-teal-200"
+                  : "bg-white text-teal-600 shadow-lg"
               }`}
             >
-              <p
-                className={`text-lg font-medium ${
-                  isDarkMode ? "text-teal-300" : "text-teal-700"
-                }`}
-              >
-                No text has been selected yet.
-              </p>
-              <p
-                className={`text-sm mt-2 ${
-                  isDarkMode ? "text-teal-400" : "text-teal-500"
-                }`}
-              >
-                Go to the Document tab and select text to generate questions.
+              <p className="text-xl">No highlighted text found</p>
+              <p className="text-sm mt-2 opacity-70">
+                Go back to the previous step to highlight some text first
               </p>
             </div>
           )}
+        </div>
+
+        {/* Navigation Buttons */}
+        <div className="flex justify-between max-w-4xl mx-auto">
+          <button
+            onClick={handlePrevious}
+            className={`flex items-center space-x-2 px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 ${
+              isDarkMode
+                ? "bg-gray-700 text-teal-200 hover:bg-gray-600 border-2 border-teal-400"
+                : "bg-white text-teal-800 hover:bg-teal-50 border-2 border-teal-300 shadow-lg"
+            }`}
+          >
+            <FaChevronLeft />
+            <span>Previous</span>
+          </button>
+          <button
+            data-testid="next-button"
+            onClick={handleNext}
+            className={`flex items-center space-x-2 px-8 py-4 rounded-xl font-semibold text-lg transition-all duration-300 transform hover:scale-105 ${
+              isDarkMode
+                ? "bg-teal-600 text-white hover:bg-teal-500"
+                : "bg-teal-600 text-white hover:bg-teal-700 shadow-lg"
+            }`}
+          >
+            <span>Next</span>
+            <FaChevronRight />
+          </button>
         </div>
       </div>
     </div>
