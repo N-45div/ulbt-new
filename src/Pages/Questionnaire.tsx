@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useContext } from "react";
 import Navbar from "../components/Navbar";
 import { FaChevronLeft, FaChevronRight, FaChevronDown } from "react-icons/fa";
 import { useQuestionType } from "../context/QuestionTypeContext";
@@ -160,7 +160,7 @@ const DivWithDropdown: React.FC<DivWithDropdownProps> = ({
     const { primaryType } = determineQuestionType(oldText);
     const placeholder = findPlaceholderByValue(oldText);
 
-    if (placeholder && primaryType !== "Unknown") {
+    if (placeholder && primaryType && primaryType !== "Unknown") {
       const typeKey = mapPrimaryTypeToQuestionType(primaryType);
       updateQuestion(typeKey, placeholder, newText);
     }
@@ -994,7 +994,7 @@ const Questionnaire = () => {
     const placeholder = findPlaceholderByValue(oldText) || "undefined";
     const { primaryType } = determineQuestionType(placeholder);
 
-    if (placeholder && primaryType !== "Unknown") {
+    if (placeholder && primaryType && primaryType !== "Unknown") {
       const typeKey = mapPrimaryTypeToQuestionType(primaryType);
       updateQuestion(typeKey, placeholder, newText);
     }
