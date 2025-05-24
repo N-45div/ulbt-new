@@ -49,6 +49,25 @@ const ShepherdStatic = Shepherd as unknown as ShepherdStatic;
 // Define QuestionType to match expected keys
 type QuestionType = "textTypes" | "numberTypes" | "dateTypes" | "radioTypes";
 
+// Type guard to map primaryType to QuestionType
+const getQuestionType = (primaryType: string | undefined): QuestionType => {
+  const lowerType = primaryType?.toLowerCase();
+  switch (lowerType) {
+    case "text":
+    case "paragraph":
+      return "textTypes";
+    case "number":
+      return "numberTypes";
+    case "date":
+      return "dateTypes";
+    case "radio":
+      return "radioTypes";
+    default:
+      console.warn(`Unknown primaryType "${primaryType}", defaulting to textTypes`);
+      return "textTypes";
+  }
+};
+
 interface DivWithDropdownProps {
   textValue: string;
   index: number;
@@ -142,27 +161,8 @@ const DivWithDropdown: React.FC<DivWithDropdownProps> = ({
     const { primaryType } = determineQuestionType(oldText);
     const placeholder = findPlaceholderByValue(oldText);
 
-    // Directly map primaryType to QuestionType
-    let typeKey: QuestionType = "textTypes"; // Default
-    if (primaryType && placeholder) {
-      switch (primaryType.toLowerCase()) {
-        case "text":
-        case "paragraph":
-          typeKey = "textTypes";
-          break;
-        case "number":
-          typeKey = "numberTypes";
-          break;
-        case "date":
-          typeKey = "dateTypes";
-          break;
-        case "radio":
-          typeKey = "radioTypes";
-          break;
-        default:
-          console.warn(`Unknown primaryType "${primaryType}", defaulting to textTypes`);
-          typeKey = "textTypes";
-      }
+    if (placeholder && primaryType) {
+      const typeKey = getQuestionType(primaryType);
       updateQuestion(typeKey, placeholder, newText);
     } else {
       console.warn(`Skipping updateQuestion: Invalid primaryType "${primaryType}" or placeholder "${placeholder}" for oldText "${oldText}"`);
@@ -635,7 +635,7 @@ const Questionnaire = () => {
       id: "set-required-employee-name",
       text: "Mark the <strong>Employee Name</strong> question as <strong>Required</strong> by toggling the switch.",
       attachTo: {
-        element: document.querySelector(`[data-testid="required-toggle-1"]`) ?? document.body,
+        element: document.querySelector(`[data-testid="required-toggle values-1"]`) ?? document.body,
         on: "bottom",
       },
       buttons: [
@@ -997,27 +997,8 @@ const Questionnaire = () => {
     const placeholder = findPlaceholderByValue(oldText) || "undefined";
     const { primaryType } = determineQuestionType(placeholder);
 
-    // Directly map primaryType to QuestionType
-    let typeKey: QuestionType = "textTypes"; // Default
-    if (primaryType && placeholder) {
-      switch (primaryType.toLowerCase()) {
-        case "text":
-        case "paragraph":
-          typeKey = "textTypes";
-          break;
-        case "number":
-          typeKey = "numberTypes";
-          break;
-        case "date":
-          typeKey = "dateTypes";
-          break;
-        case "radio":
-          typeKey = "radioTypes";
-          break;
-        default:
-          console.warn(`Unknown primaryType "${primaryType}", defaulting to textTypes`);
-          typeKey = "textTypes";
-      }
+    if (placeholder && primaryType) {
+      const typeKey = getQuestionType(primaryType);
       updateQuestion(typeKey, placeholder, newText);
     } else {
       console.warn(`Skipping updateQuestion: Invalid primaryType "${primaryType}" or placeholder "${placeholder}" for oldText "${oldText}"`);
