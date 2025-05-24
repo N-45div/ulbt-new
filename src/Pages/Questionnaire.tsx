@@ -1,12 +1,9 @@
-import React, { useState, useEffect, useContext, useCallback, useRef } from "react";
+import { useState, useEffect, useContext, useCallback, useRef } from "react";
 import Navbar from "../components/Navbar";
 import { FaChevronLeft, FaChevronRight, FaChevronDown } from "react-icons/fa";
 import { useQuestionType } from "../context/QuestionTypeContext";
 import { useHighlightedText } from "../context/HighlightedTextContext";
-import {
-  useQuestionEditContext,
-  QuestionMaps,
-} from "../context/QuestionEditContext.tsx";
+import { useQuestionEditContext } from "../context/QuestionEditContext.tsx";
 import { ThemeContext } from "../context/ThemeContext";
 import { useScore } from "../context/ScoreContext";
 import { useNavigate } from "react-router-dom";
@@ -85,8 +82,8 @@ const DivWithDropdown: React.FC<DivWithDropdownProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [isRequired, setIsRequired] = useState(initialRequired);
   const [typeChanged, setTypeChanged] = useState(initialTypeChanged);
-  const { findPlaceholderByValue, updateQuestion, determineQuestionType, questionMaps } = useQuestionEditContext();
-  
+  const { findPlaceholderByValue, updateQuestion, determineQuestionType } = useQuestionEditContext();
+
   const enhancedDetermineQuestionType = useCallback(
     (text: string) => {
       if (/yes\/no|radio/i.test(text)) {
@@ -148,7 +145,6 @@ const DivWithDropdown: React.FC<DivWithDropdownProps> = ({
     if (placeholder && primaryType !== "Unknown") {
       const typeKey = `${primaryType.toLowerCase()}Types` as QuestionType;
       updateQuestion(typeKey, placeholder, newText);
-      console.log("Updated question map: ", questionMaps);
     }
 
     // Trigger tour advancement for specific placeholders
@@ -318,13 +314,14 @@ const DivWithDropdown: React.FC<DivWithDropdownProps> = ({
 
 const Questionnaire = () => {
   const { isDarkMode } = useContext(ThemeContext);
-  const { totalScore, updateQuestionnaireScore } = useScore();
+  const { totalScore, setQuestionnaireScore } = useContext(ScoreContext);
   const [leftActive, setLeftActive] = useState(true);
   const [rightActive, setRightActive] = useState(false);
   const { highlightedTexts } = useHighlightedText();
   const {
     selectedTypes,
     setSelectedTypes,
+    editedQuestions,
     setEditedQuestions,
     requiredQuestions,
     setRequiredQuestions,
@@ -336,12 +333,8 @@ const Questionnaire = () => {
     Record<number, { typeScored: boolean; requiredScored: boolean }>
   >({});
   const [bonusAwarded, setBonusAwarded] = useState(false);
-  const [scoreFeedback, setScoreFeedback] = useState<{
-    points: number;
-    id: number;
-  } | null>(null);
+  const [scoreChange, setScoreChange] = useState<number | null>(null);
   const [typeChangedStates, setTypeChangedStates] = useState<boolean[]>([]);
-  const feedbackId = useRef(0);
   const tourRef = useRef<ShepherdTour | null>(null);
   const { updateQuestion, determineQuestionType, findPlaceholderByValue } =
     useQuestionEditContext();
@@ -351,13 +344,7 @@ const Questionnaire = () => {
   const SMALL_CONDITION_TEXT = "The Employee may be required to work at other locations.";
   const SMALL_CONDITION_QUESTION = "Does the employee need to work at additional locations besides the normal place of work?";
   const FOLLOW_UP_TEXT = "other locations";
-  const FOLLOW_UP_QUESTION = "What are the other work locations?";
-
-  const showFeedback = (points: number) => {
-    feedbackId.current += 1;
-    setScoreFeedback({ points, id: feedbackId.current });
-    setTimeout(() => setScoreFeedback(null), 1500);
-  };
+  const FOLLOW_UP_QUESTION = "What is the additional work location?";
 
   const enhancedDetermineQuestionType = useCallback(
     (text: string) => {
@@ -411,8 +398,13 @@ const Questionnaire = () => {
       const isCorrect = selectedType === correctType || isEquivalent;
       const points = isCorrect ? 2 : -2;
 
-      updateQuestionnaireScore(points);
-      showFeedback(points);
+      setQuestionnaireScore((prevScore: number) => {
+        const newScore = Math.max(0, prevScore + points);
+        console.log(`Scored type selection for index ${index}: ${points} points, new questionnaireScore: ${newScore}`);
+        setScoreChange(points);
+        setTimeout(() => setScoreChange(null), 2000);
+        return newScore;
+      });
 
       setScoredQuestions((prev) => ({
         ...prev,
@@ -422,17 +414,21 @@ const Questionnaire = () => {
           typeCorrect: isCorrect,
         },
       }));
-      console.log(`Scored type selection for index ${index}: ${points} points`);
     },
-    [uniqueQuestions, enhancedDetermineQuestionType, scoredQuestions, updateQuestionnaireScore]
+    [uniqueQuestions, enhancedDetermineQuestionType, scoredQuestions, setQuestionnaireScore]
   );
 
   const scoreRequiredStatus = useCallback(
     (index: number, isRequired: boolean) => {
       if (isRequired) {
         if (!scoredQuestions[index]?.requiredScored) {
-          updateQuestionnaireScore(2);
-          showFeedback(2);
+          setQuestionnaireScore((prevScore: number) => {
+            const newScore = prevScore + 2;
+            console.log(`Required status for "${uniqueQuestions[index]}" set to true, scored +2, new questionnaireScore: ${newScore}`);
+            setScoreChange(2);
+            setTimeout(() => setScoreChange(null), 2000);
+            return newScore;
+          });
           setScoredQuestions((prev) => ({
             ...prev,
             [index]: {
@@ -441,14 +437,16 @@ const Questionnaire = () => {
               requiredCorrect: true,
             },
           }));
-          console.log(
-            `Required status for "${uniqueQuestions[index]}" set to true, scored +2`
-          );
         }
       } else {
         if (scoredQuestions[index]?.requiredScored) {
-          updateQuestionnaireScore(-2);
-          showFeedback(-2);
+          setQuestionnaireScore((prevScore: number) => {
+            const newScore = Math.max(0, prevScore - 2);
+            console.log(`Required status for "${uniqueQuestions[index]}" set to false, scored -2, new questionnaireScore: ${newScore}`);
+            setScoreChange(-2);
+            setTimeout(() => setScoreChange(null), 2000);
+            return newScore;
+          });
           setScoredQuestions((prev) => ({
             ...prev,
             [index]: {
@@ -457,13 +455,10 @@ const Questionnaire = () => {
               requiredCorrect: false,
             },
           }));
-          console.log(
-            `Required status for "${uniqueQuestions[index]}" set to false, scored -2`
-          );
         }
       }
     },
-    [updateQuestionnaireScore, scoredQuestions, uniqueQuestions]
+    [setQuestionnaireScore, scoredQuestions, uniqueQuestions]
   );
 
   const checkForBonus = useCallback(() => {
@@ -483,12 +478,14 @@ const Questionnaire = () => {
     });
 
     if (allCorrect) {
-      updateQuestionnaireScore(10);
-      showFeedback(10);
+      setQuestionnaireScore((prevScore: number) => {
+        const newScore = prevScore + 10;
+        console.log(`Bonus awarded: All question types and required statuses are correct. +10 points, new questionnaireScore: ${newScore}`);
+        setScoreChange(10);
+        setTimeout(() => setScoreChange(null), 2000);
+        return newScore;
+      });
       setBonusAwarded(true);
-      console.log(
-        "Bonus awarded: All question types and required statuses are correct. +10 points"
-      );
     }
   }, [
     uniqueQuestions,
@@ -496,7 +493,7 @@ const Questionnaire = () => {
     requiredQuestions,
     enhancedDetermineQuestionType,
     bonusAwarded,
-    updateQuestionnaireScore,
+    setQuestionnaireScore,
   ]);
 
   // Shepherd.js tour for Level 1 (Automate Placeholders)
@@ -721,7 +718,7 @@ const Questionnaire = () => {
       tour.complete();
       delete (window as any).tourRef;
     };
-  }, [navigate, questionOrder, selectedTypes]);
+  }, [navigate]);
 
   useEffect(() => {
     const normalizedHighlightedTexts = highlightedTexts.map((text) =>
@@ -1074,11 +1071,8 @@ const Questionnaire = () => {
   };
 
   const handleNextClick = () => {
-    // Save question order to sessionStorage as questionOrder_2
     sessionStorage.setItem("questionOrder_2", JSON.stringify(questionOrder));
-    // Ensure selectedTypes are saved
     sessionStorage.setItem("selectedQuestionTypes", JSON.stringify(selectedTypes));
-    // questionnaireState already contains questionTexts, selectedTypes, requiredQuestions, etc.
     navigate("/Live_Generation");
     console.log("Navigating to Live Generation tab");
   };
@@ -1142,29 +1136,25 @@ const Questionnaire = () => {
         </button>
       </div>
 
-      <div
-        className={`absolute top-16 left-6 w-40 h-12 rounded-xl shadow-lg flex items-center justify-center text-sm font-semibold z-20 ${
-          isDarkMode
-            ? "bg-gradient-to-r from-gray-700 to-gray-800 text-teal-200"
-            : "bg-gradient-to-r from-teal-200 to-cyan-200 text-teal-900"
-        }`}
-      >
-        <div className="relative">
-          Score: {totalScore}
-          {scoreFeedback && (
-            <div
-              key={scoreFeedback.id}
-              className={`absolute -top-6 right-0 font-bold text-lg ${
-                scoreFeedback.points > 0 ? "text-emerald-400" : "text-rose-500"
-              } animate-[float-up_1.5s_ease-out_forwards]`}
+      <div className="fixed top-16 left-6 z-50 px-6 py-3">
+        <div
+          className={`p-3 rounded-full shadow-lg flex items-center ${
+            isDarkMode ? "bg-gray-700 text-white" : "bg-teal-500 text-white"
+          }`}
+        >
+          <span className="font-bold mr-2">Score:</span> {totalScore}
+          {scoreChange !== null && (
+            <span
+              className={`ml-2 text-sm font-bold ${
+                scoreChange > 0 ? "text-green-400" : "text-red-400"
+              }`}
             >
-              {scoreFeedback.points > 0
-                ? `+${scoreFeedback.points}`
-                : scoreFeedback.points}
-            </div>
+              {scoreChange > 0 ? `+${scoreChange}` : scoreChange}
+            </span>
           )}
         </div>
       </div>
+
       <div
         className={`absolute top-16 right-6 w-80 h-12 rounded-xl shadow-lg flex items-center justify-center text-sm font-semibold z-20 ${
           isDarkMode
