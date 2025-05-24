@@ -1,0 +1,61 @@
+@import "tailwindcss";
+
+/* Shepherd.js Tooltip Styling */
+.shepherd-element {
+    max-width: 400px !important;
+    padding: 20px !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+    font-family: 'Roboto', sans-serif !important;
+    font-size: 16px !important;
+    line-height: 1.6 !important;
+    background-color: #f0f4f8 !important;
+    color: #1a1a1a !important;
+    z-index: 9999 !important;
+    overflow: visible !important;
+    max-height: 80vh;
+    overflow-y: auto !important;
+}
+
+/* Custom positioning for bottom-left */
+.shepherd-element[data-popper-placement^="bottom-start"] {
+    position: fixed !important;
+    left: 20px !important; /* Adjust as needed */
+    bottom: 10px !important; /* Adjust as needed */
+    top: auto !important;
+    right: auto !important;
+    margin: 0 !important;
+    transform: none !important; /* Disable default Popper.js transformations */
+}
+
+/* Ensure the arrow is hidden (if not needed) */
+.shepherd-arrow {
+    display: none !important;
+}
+
+/* Shepherd.js Button Styling */
+.shepherd-button {
+    background-color: #4a90e2 !important; /* Default button color */
+    color: #ffffff !important; /* White text for buttons */
+    border-radius: 8px !important; /* Rounded corners for buttons */
+    padding: 8px 16px !important; /* Button padding */
+    font-size: 14px !important; /* Button font size */
+    font-family: 'Roboto', sans-serif !important; /* Consistent font for buttons */
+    border: none !important; /* Remove default border */
+    cursor: pointer !important; /* Pointer cursor on hover */
+    transition: background-color 0.3s ease !important; /* Smooth transition for button hover */
+}
+
+/* Hover effect for buttons */
+.shepherd-button:hover {
+    background-color: #ffcc00 !important; /* Yellow color on hover */
+    color: #1a1a1a !important; /* Dark text for better contrast */
+    transform: scale(1.05) !important;
+}
+
+
+@keyframes confetti-1 { 0% { transform: translateY(-100%) rotate(0deg); } 100% { transform: translateY(100vh) rotate(360deg); } }
+@keyframes confetti-2 { 0% { transform: translateY(-100%) rotate(0deg); } 100% { transform: translateY(100vh) rotate(-180deg); } }
+ @keyframes confetti-3 { 0% { transform: translateY(-100%) rotate(0deg); } 100% { transform: translateY(100vh) rotate(180deg); } }
+ @keyframes confetti-4 { 0% { transform: translateY(-100%) rotate(0deg); } 100% { transform: translateY(100vh) rotate(-90deg); } }
+ @keyframes confetti-5 { 0% { transform: translateY(-100%) rotate(0deg); } 100% { transform: translateY(100vh) rotate(90deg); } }

@@ -1,0 +1,8 @@
+
+/* src/crisp-override.css */
+#crisp-chatbox {
+    right: auto !important;
+    left: 20px !important;
+    bottom: 20px !important;
+  }
+  

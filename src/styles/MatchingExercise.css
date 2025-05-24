@@ -1,0 +1,215 @@
+.matching-exercise-container {
+    padding: 40px;
+    max-width: 1200px;
+    margin: 0 auto;
+    position: relative;
+    font-family: 'Inter', sans-serif;
+    background-color: #f8fafc;
+    border-radius: 16px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    transition: all 0.4s ease-in-out;
+}
+
+.matching-exercise-title {
+    text-align: center;
+    color: #2563eb;
+    font-size: 2.6rem;
+    font-weight: 700;
+    margin-bottom: 50px;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s ease;
+}
+
+/* Container for terms and definitions */
+.matching-columns {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    gap: 120px;
+    margin-bottom: 50px;
+    padding: 0 20px;
+    transition: all 0.3s ease;
+}
+
+/* Ensuring both columns are evenly spaced */
+.terms-column, .definitions-column {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    transition: all 0.3s ease;
+}
+
+/* Term Items */
+.term-item {
+    background: linear-gradient(120deg, #22c55e, #3b82f6);
+    color: #ffffff;
+    font-weight: 600;
+    font-size: 1.2rem;
+    border: none;
+    min-height: 60px;
+    width: 280px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: transform 0.4s ease, box-shadow 0.4s ease;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    position: relative;
+}
+
+.term-item:hover {
+    transform: scale(1.08);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+}
+
+.term-item.selected {
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.6);
+    transform: scale(1.1);
+}
+
+/* Definition Items */
+.definition-item {
+    background: #ffffff;
+    color: #374151;
+    border: 2px solid #e5e7eb;
+    font-size: 1rem;
+    line-height: 1.6;
+    width: 460px;
+    padding: 18px 24px;
+    text-align: left;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.4s ease-in-out;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.definition-item:hover {
+    transform: scale(1.04);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.2);
+}
+
+.definition-item.matched {
+    border: 2px solid #22c55e;
+    background: rgba(34, 197, 94, 0.1);
+    transition: all 0.3s ease;
+}
+
+/* Matched items */
+.term-item.matched {
+    background: linear-gradient(120deg, #16a34a, #2563eb);
+    opacity: 0.9;
+    transition: all 0.3s ease;
+}
+
+/* Connecting Lines */
+.match-line.correct {
+    stroke: #10B981 !important;
+    stroke-width: 4px;
+    transition: stroke 0.3s ease-in-out;
+}
+
+.match-line.incorrect {
+    stroke: #EF4444 !important;
+    stroke-width: 4px;
+    transition: stroke 0.3s ease-in-out;
+}
+
+/* Reset Button */
+.reset-button {
+    background-color: #3b82f6;
+    color: white;
+    border: none;
+    padding: 14px 32px;
+    border-radius: 14px;
+    font-size: 1.2rem;
+    font-weight: 700;
+    margin: 20px auto;
+    display: block;
+    cursor: pointer;
+    transition: all 0.3s ease-in-out;
+    box-shadow: 0 4px 6px rgba(59, 130, 246, 0.4);
+}
+
+.reset-button:hover {
+    background-color: #1d4ed8;
+    transform: translateY(-3px);
+    box-shadow: 0 6px 14px rgba(29, 78, 216, 0.5);
+}
+
+.reset-button:active {
+    transform: translateY(1px);
+}
+
+/* Completion Message */
+.completion-message {
+    margin-top: 30px;
+    text-align: center;
+    color: #2563eb;
+    font-size: 1.6rem;
+    font-weight: 700;
+    padding: 18px;
+    background: rgba(59, 130, 246, 0.1);
+    border-radius: 12px;
+    animation: fadeIn 1s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Connecting Lines Container */
+.matching-lines-container {
+    position: absolute;
+    top: -32%;
+    left: 32%;
+    width: 100%;
+    height: 140%;
+    transform: translateX(-50%);
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+    .matching-columns {
+        gap: 80px;
+    }
+
+    .term-item {
+        width: 240px;
+    }
+
+    .definition-item {
+        width: 380px;
+    }
+}
+
+@media (max-width: 768px) {
+    .matching-columns {
+        flex-direction: column;
+        gap: 60px;
+    }
+
+    .terms-column, .definitions-column {
+        width: 100%;
+        align-items: center;
+    }
+
+    .term-item {
+        width: 90%;
+    }
+
+    .definition-item {
+        width: 95%;
+    }
+}
